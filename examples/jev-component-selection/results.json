@@ -1,34 +1,49 @@
 {
-  "state": "Create account preferences with a name field and Save button. The form edits the user's display name and persists it on save.",
+  "state": "Build a sales dashboard with an orders table on top, then a KPI row with revenue, orders and new-customers metrics, then a weekly revenue line chart, plus an account preferences panel with a display-name field and a Save button.",
   "trials": 3,
-  "generatedAt": "2026-09-22T04:15:13.741Z",
+  "generatedAt": "2026-09-22T05:22:25.447Z",
   "baseline": {
     "model": "gpt-4o-mini",
     "timesMs": [
-      2498.742855,
-      1232.1864289999999,
-      1379.7318930000001
+      924.740526,
+      706.5636850000001,
+      836.254543
     ],
     "runs": [
       {
-        "ms": 2498.742855,
+        "ms": 924.740526,
         "chosen": [
+          "orders-table",
+          "revenue-kpi",
+          "orders-kpi",
+          "customers-kpi",
+          "revenue-line",
           "preferences-panel",
           "name-input",
           "save-button"
         ]
       },
       {
-        "ms": 1232.1864289999999,
+        "ms": 706.5636850000001,
         "chosen": [
+          "orders-table",
+          "revenue-kpi",
+          "orders-kpi",
+          "customers-kpi",
+          "revenue-line",
           "preferences-panel",
           "name-input",
           "save-button"
         ]
       },
       {
-        "ms": 1379.7318930000001,
+        "ms": 836.254543,
         "chosen": [
+          "orders-table",
+          "revenue-kpi",
+          "orders-kpi",
+          "customers-kpi",
+          "revenue-line",
           "preferences-panel",
           "name-input",
           "save-button"
@@ -39,66 +54,141 @@
   "jev": {
     "model": "jev-1.13.0",
     "timesMs": [
-      229.16192699999965,
-      130.5991479999998,
-      212.2990919999993
+      219.33625499999994,
+      144.13654500000007,
+      160.75925700000016
     ],
     "runs": [
       {
-        "ms": 229.16192699999965,
+        "ms": 219.33625499999994,
         "chosen": [
+          "orders-table",
+          "revenue-kpi",
+          "orders-kpi",
+          "customers-kpi",
+          "revenue-line",
           "preferences-panel",
           "name-input",
           "save-button"
         ],
         "scores": {
-          "preferences-panel": 0.89,
-          "name-input": 0.97,
-          "email-input": 0.04,
-          "avatar": 0.09,
-          "save-button": 0.97,
-          "reset-button": 0.16,
-          "orders-table": 0.02,
-          "revenue-chart": 0.02
+          "orders-table": 0.98,
+          "revenue-kpi": 0.97,
+          "orders-kpi": 0.96,
+          "customers-kpi": 0.96,
+          "churn-kpi": 0.06,
+          "revenue-line": 0.98,
+          "revenue-bars": 0.09,
+          "traffic-chart": 0.03,
+          "customers-table": 0.08,
+          "inventory-table": 0.03,
+          "preferences-panel": 0.98,
+          "name-input": 0.94,
+          "email-input": 0.08,
+          "avatar": 0.1,
+          "save-button": 0.98,
+          "reset-button": 0.1,
+          "export-button": 0.11,
+          "date-filter": 0.37,
+          "search-bar": 0.16,
+          "login-card": 0.03,
+          "signup-form": 0.03,
+          "pricing-table": 0.03,
+          "testimonials": 0.03,
+          "faq-accordion": 0.03,
+          "notifications": 0.04,
+          "calendar-widget": 0.03,
+          "map-widget": 0.03,
+          "chat-widget": 0.03
         }
       },
       {
-        "ms": 130.5991479999998,
+        "ms": 144.13654500000007,
         "chosen": [
+          "orders-table",
+          "revenue-kpi",
+          "orders-kpi",
+          "customers-kpi",
+          "revenue-line",
           "preferences-panel",
           "name-input",
           "save-button"
         ],
         "scores": {
-          "preferences-panel": 0.9,
-          "name-input": 0.97,
-          "email-input": 0.04,
-          "avatar": 0.09,
-          "save-button": 0.97,
-          "reset-button": 0.16,
-          "orders-table": 0.02,
-          "revenue-chart": 0.02
+          "orders-table": 0.98,
+          "revenue-kpi": 0.97,
+          "orders-kpi": 0.96,
+          "customers-kpi": 0.97,
+          "churn-kpi": 0.06,
+          "revenue-line": 0.98,
+          "revenue-bars": 0.09,
+          "traffic-chart": 0.03,
+          "customers-table": 0.08,
+          "inventory-table": 0.03,
+          "preferences-panel": 0.98,
+          "name-input": 0.94,
+          "email-input": 0.08,
+          "avatar": 0.1,
+          "save-button": 0.98,
+          "reset-button": 0.1,
+          "export-button": 0.11,
+          "date-filter": 0.44,
+          "search-bar": 0.17,
+          "login-card": 0.03,
+          "signup-form": 0.02,
+          "pricing-table": 0.02,
+          "testimonials": 0.03,
+          "faq-accordion": 0.03,
+          "notifications": 0.04,
+          "calendar-widget": 0.03,
+          "map-widget": 0.03,
+          "chat-widget": 0.03
         }
       },
       {
-        "ms": 212.2990919999993,
+        "ms": 160.75925700000016,
         "chosen": [
+          "orders-table",
+          "revenue-kpi",
+          "orders-kpi",
+          "customers-kpi",
+          "revenue-line",
           "preferences-panel",
           "name-input",
           "save-button"
         ],
         "scores": {
-          "preferences-panel": 0.9,
-          "name-input": 0.97,
-          "email-input": 0.05,
-          "avatar": 0.08,
-          "save-button": 0.97,
-          "reset-button": 0.17,
-          "orders-table": 0.02,
-          "revenue-chart": 0.02
+          "orders-table": 0.98,
+          "revenue-kpi": 0.97,
+          "orders-kpi": 0.97,
+          "customers-kpi": 0.97,
+          "churn-kpi": 0.06,
+          "revenue-line": 0.98,
+          "revenue-bars": 0.1,
+          "traffic-chart": 0.03,
+          "customers-table": 0.07,
+          "inventory-table": 0.03,
+          "preferences-panel": 0.98,
+          "name-input": 0.93,
+          "email-input": 0.07,
+          "avatar": 0.1,
+          "save-button": 0.98,
+          "reset-button": 0.09,
+          "export-button": 0.12,
+          "date-filter": 0.38,
+          "search-bar": 0.15,
+          "login-card": 0.03,
+          "signup-form": 0.02,
+          "pricing-table": 0.03,
+          "testimonials": 0.03,
+          "faq-accordion": 0.03,
+          "notifications": 0.04,
+          "calendar-widget": 0.03,
+          "map-widget": 0.03,
+          "chat-widget": 0.03
         }
       }
     ]
   },
-  "speedupMedian": 6.499000443204933
+  "speedupMedian": 5.201905996617036
 }

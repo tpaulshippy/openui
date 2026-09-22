@@ -18,16 +18,18 @@
  * Env: TYPESAFE_API_KEY, OPENAI_API_KEY
  * Output: results.json (committed as a sample) + stdout timing table.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  CRITERIA,
+  INSTANCES as candidates,
+  STATE,
+  experimental_createJevEvaluator,
+  experimental_selectCandidates,
+} from "./catalog.mjs";
 
 const dir = dirname(fileURLToPath(import.meta.url));
-const candidates = JSON.parse(readFileSync(join(dir, "candidates.json"), "utf8"));
-
-const STATE =
-  "Create account preferences with a name field and Save button. " +
-  "The form edits the user's display name and persists it on save.";
 
 const TRIALS = Number(process.argv[process.argv.indexOf("--trials") + 1]) || 3;
 
@@ -74,51 +76,41 @@ async function runWithoutJev() {
   if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const json = await res.json();
   const ms = performance.now() - started;
-  let chosen = [];
+  let rawChosen = [];
   try {
-    chosen = JSON.parse(json.choices[0].message.content).chosen ?? [];
+    rawChosen = JSON.parse(json.choices[0].message.content).chosen ?? [];
   } catch {
-    chosen = [];
+    rawChosen = [];
   }
-  return { ms, chosen, usage: json.usage ?? null };
-}
-
-function jevQuestions() {
-  const questions = {};
-  for (const c of candidates) {
-    questions[`include_${c.id.replaceAll("-", "_")}`] = {
-      type: "noul",
-      instructions: `Request: ${STATE}. Should the candidate "${c.id}" (${c.component}: ${c.description}) be included in the composed UI?`,
-      criteria: {
-        true: "Needed for the requested preferences form (panel, name field, save action)",
-        false: "Unrelated, redundant, or not requested",
-      },
-    };
-  }
-  return questions;
+  // Route through the shared library selector so both arms differ only in evaluator.
+  const evaluate = async (state, questions) => {
+    const answers = {};
+    for (const c of candidates) {
+      const qid = `include_${c.id.replaceAll("-", "_")}`;
+      if (questions[qid]) answers[qid] = { type: "noul", noul: rawChosen.includes(c.id) ? 1 : 0 };
+    }
+    return { model: "gpt-4o-mini", answers, usage: json.usage ?? { input_tokens: 0, output_tokens: 0 } };
+  };
+  const selection = await experimental_selectCandidates({
+    state: STATE,
+    candidates,
+    evaluate,
+    criteria: CRITERIA,
+  });
+  return { ms, chosen: selection.chosen, usage: json.usage ?? null };
 }
 
 async function runWithJev() {
-  const questions = jevQuestions();
+  const evaluate = experimental_createJevEvaluator({ apiKey: TYPESAFE_API_KEY });
   const started = performance.now();
-  const res = await fetch("https://api.typesafe.ai/v1/systemone", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${TYPESAFE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: "jev-latest", state: STATE, questions }),
+  const selection = await experimental_selectCandidates({
+    state: STATE,
+    candidates,
+    evaluate,
+    criteria: CRITERIA,
   });
-  if (!res.ok) throw new Error(`Jev HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const json = await res.json();
   const ms = performance.now() - started;
-  const chosen = candidates
-    .filter((c) => (json.answers?.[`include_${c.id.replaceAll("-", "_")}`]?.noul ?? 0) >= 0.5)
-    .map((c) => c.id);
-  const scores = Object.fromEntries(
-    candidates.map((c) => [c.id, json.answers?.[`include_${c.id.replaceAll("-", "_")}`]?.noul ?? 0]),
-  );
-  return { ms, chosen, scores, usage: json.usage ?? null, model: json.model ?? null };
+  return { ms, chosen: selection.chosen, scores: selection.scores, usage: null, model: selection.model };
 }
 
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];

@@ -91,3 +91,20 @@ export { ToolNotFoundError } from "./runtime/toolProvider";
 // ── Validation ──
 export { builtInValidators, parseRules, parseStructuredRules, validate } from "./utils/validation";
 export type { ParsedRule, ValidatorFn } from "./utils/validation";
+
+// ── Jev (experimental decision-model integration, server-side only) ──
+export {
+  experimental_candidateQuestions,
+  experimental_createJevEvaluator,
+  experimental_selectCandidates,
+} from "./jev/index";
+export type {
+  Experimental_Candidate,
+  Experimental_JevAnswer,
+  Experimental_JevEvaluate,
+  Experimental_JevEvaluatorOptions,
+  Experimental_JevQuestion,
+  Experimental_JevResult,
+  Experimental_SelectOptions,
+  Experimental_Selection,
+} from "./jev/index";

@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 /**
  * Live build-off server: realistic UI-being-built demo (28-candidate
- * dashboard + preferences task — big enough that the LLM baseline takes
- * several seconds while the single batched Jev round trip stays flat).
+ * dashboard + preferences task) running on the REAL lang-core library.
  *
- * Serves this directory statically plus two SSE endpoints that use REAL APIs:
- * - POST /api/build {"mode":"baseline"} → streams REAL OpenAI
- *   (gpt-4o-mini, stream:true) token deltas as SSE `token` events, then `done`.
- * - POST /api/build {"mode":"jev"} → one REAL TypeSafe `jev-latest`
- *   systemone call (8 batched Noul questions, single round trip), then
- *   `decisions` with all scores at once.
+ * - Catalog: real `defineComponent`/`createLibrary` in catalog.mjs.
+ * - Baseline: prompt is `lib.prompt()` (generated, not hand-written); the
+ *   streamed openui-lang program is validated with the real `parse` and the
+ *   page renders only the validated AST.
+ * - Jev: one `jev-latest` round trip over catalog instances; selections are
+ *   composed with the real `jsonToOpenUI` and re-validated with `parse`.
  *
  * Usage:
- *   set -a; source ~/shared_config; set +a
  *   node live.mjs [--port 8123]
  *   # open http://localhost:8123/live.html
  */
@@ -22,12 +20,16 @@ import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dir = dirname(fileURLToPath(import.meta.url));
-const candidates = JSON.parse(readFileSync(join(dir, "candidates-live.json"), "utf8"));
-const STATE =
-  "Build a sales dashboard with an orders table on top, then a KPI row " +
-  "with revenue, orders and new-customers metrics, then a weekly revenue " +
-  "line chart, plus an account preferences panel with a display-name field " +
-  "and a Save button.";
+
+import {
+  CRITERIA,
+  INSTANCES,
+  STATE,
+  composeProgram,
+  experimental_createJevEvaluator,
+  experimental_selectCandidates,
+  programChildren,
+} from "./catalog.mjs";
 
 const TYPESAFE_API_KEY = process.env.TYPESAFE_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -36,94 +38,129 @@ if (!TYPESAFE_API_KEY || !OPENAI_API_KEY) {
   process.exit(1);
 }
 
-const MIME = { ".html": "text/html", ".json": "application/json", ".mjs": "text/javascript", ".md": "text/markdown" };
+const MIME = { ".html": "text/html", ".json": "application/json", ".mjs": "text/javascript", ".js": "text/javascript", ".md": "text/markdown" };
 
 function send(res, obj) {
   res.write(`data: ${JSON.stringify(obj)}\n\n`);
 }
 
-// The baseline mirrors OpenUI's real generation path: ONE LLM call that
-// streams the full composed spec — selection + section grouping + ordering —
-// as tokens. More output tokens than a bare id list, which is exactly why it
-// takes seconds on a dashboard-sized task.
-async function handleBaseline(res) {
-  const started = performance.now();
-  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      stream: true,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: "You are the composer for a generative-UI framework. Reply with JSON only: {\"sections\": [{\"name\": \"orders\" | \"kpis\" | \"chart\" | \"preferences\", \"components\": [\"<candidate-id>\", ...]}]} using exactly the candidate ids given, grouped into sections in display order." },
-        { role: "user", content: `Request: ${STATE}\n\nCandidates:\n${candidates.map((c) => `- ${c.id} (${c.component}): ${c.description}`).join("\n")}` },
-      ],
-    }),
-  });
-  if (!upstream.ok || !upstream.body) throw new Error(`OpenAI HTTP ${upstream.status}`);
-  let raw = "";
-  const reader = upstream.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const parts = buf.split("\n\n");
-    buf = parts.pop() ?? "";
-    for (const part of parts) {
-      for (const line of part.split("\n")) {
-        const t = line.trim();
-        if (!t.startsWith("data:")) continue;
-        const payload = t.slice(5).trim();
-        if (payload === "[DONE]") continue;
-        try {
-          const delta = JSON.parse(payload).choices?.[0]?.delta?.content ?? "";
-          if (delta) {
-            raw += delta;
-            send(res, { type: "token", text: delta });
-          }
-        } catch { /* keep-alive whitespace */ }
+// THE SWITCH — both arms run the identical library pipeline:
+//   selectCandidates({ state, candidates, evaluate }) → composeProgram → parse → render.
+// Only `evaluate` differs:
+// - baseline: LLM-backed adapter for the Experimental_JevEvaluate interface
+//   (one OpenAI call returning {"chosen": [...]}, tokens forwarded for display).
+// - jev: experimental_createJevEvaluator (one Jev round trip, all parallel).
+
+function createLlmEvaluate(onToken) {
+  return async (state, questions) => {
+    const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        stream: true,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You select UI components for a generative-UI composer. " +
+              "Reply with JSON only: {\"chosen\": [\"<candidate-id>\", ...]} using exactly the candidate ids given.",
+          },
+          {
+            role: "user",
+            content:
+              `Request: ${state}\n\nCandidates:\n` +
+              INSTANCES.map((c) => `- ${c.id} (${c.component}): ${c.description}`).join("\n"),
+          },
+        ],
+      }),
+    });
+    if (!upstream.ok || !upstream.body) throw new Error(`OpenAI HTTP ${upstream.status}`);
+    let raw = "";
+    const reader = upstream.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split("\n\n");
+      buf = parts.pop() ?? "";
+      for (const part of parts) {
+        for (const line of part.split("\n")) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const delta = JSON.parse(payload).choices?.[0]?.delta?.content ?? "";
+            if (delta) {
+              raw += delta;
+              onToken(delta);
+            }
+          } catch { /* keep-alive whitespace */ }
+        }
       }
     }
-  }
+    let chosen = [];
+    try {
+      chosen = JSON.parse(raw).chosen ?? [];
+    } catch { /* fall through with empty selection */ }
+    // Map onto Noul-shaped answers so the shared selector consumes both identically.
+    const answers = {};
+    for (const c of INSTANCES) {
+      const qid = `include_${c.id.replaceAll("-", "_")}`;
+      if (questions[qid]) answers[qid] = { type: "noul", noul: chosen.includes(c.id) ? 1 : 0 };
+    }
+    return { model: "gpt-4o-mini", answers, usage: { input_tokens: 0, output_tokens: 0 } };
+  };
+}
+
+/** Shared finish: compose the selection into a validated program. */
+function finishSelection(selection) {
+  const { source, result } = composeProgram(selection.chosen);
+  return {
+    nodes: programChildren(result),
+    errors: result.meta.errors.length,
+    errorCodes: result.meta.errors.map((e) => e.code),
+    source,
+  };
+}
+
+async function handleBaseline(res) {
+  const started = performance.now();
+  const evaluate = createLlmEvaluate((delta) => send(res, { type: "token", text: delta }));
+  const selection = await experimental_selectCandidates({
+    state: STATE,
+    candidates: INSTANCES,
+    evaluate,
+    criteria: CRITERIA,
+  });
   const ms = performance.now() - started;
-  const valid = new Set(candidates.map((c) => c.id));
-  let chosen = [];
-  try {
-    const sections = JSON.parse(raw).sections ?? [];
-    chosen = sections.flatMap((s) => s.components ?? []).filter((id) => valid.has(id));
-  } catch { /* fall through with empty selection */ }
-  send(res, { type: "done", chosen, ms });
+  const finished = finishSelection(selection);
+  send(res, { type: "done", ...finished, ms });
 }
 
 async function handleJev(res) {
-  send(res, { type: "status", text: `1 round trip: evaluating ${candidates.length} candidates in parallel…` });
-  const questions = {};
-  for (const c of candidates) {
-    questions[`include_${c.id.replaceAll("-", "_")}`] = {
-      type: "noul",
-      instructions: `Request: ${STATE}. Should the candidate "${c.id}" (${c.component}: ${c.description}) be included in the composed UI?`,
-      criteria: { true: "Needed for the requested dashboard (orders table, revenue/orders/customers KPIs, revenue line chart, preferences panel with name field and save)", false: "Unrelated, redundant, or not requested" },
-    };
-  }
+  send(res, { type: "status", text: `1 round trip: evaluating ${INSTANCES.length} candidates in parallel…` });
   const started = performance.now();
-  const upstream = await fetch("https://api.typesafe.ai/v1/systemone", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${TYPESAFE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "jev-latest", state: STATE, questions }),
+  const evaluate = experimental_createJevEvaluator({ apiKey: TYPESAFE_API_KEY });
+  const selection = await experimental_selectCandidates({
+    state: STATE,
+    candidates: INSTANCES,
+    evaluate,
+    criteria: CRITERIA,
   });
-  if (!upstream.ok) throw new Error(`Jev HTTP ${upstream.status}`);
-  const json = await upstream.json();
   const ms = performance.now() - started;
-  const key = (id) => `include_${id.replaceAll("-", "_")}`;
-  const scores = Object.fromEntries(candidates.map((c) => [c.id, json.answers?.[key(c.id)]?.noul ?? 0]));
-  const chosen = candidates.filter((c) => scores[c.id] >= 0.5).map((c) => c.id);
   // All decisions arrived together in the single response; the page may
   // stagger chip rendering for visibility, which is presentational only.
-  send(res, { type: "decisions", chosen, scores, ms, model: json.model ?? "jev-latest" });
-  send(res, { type: "done", chosen, ms });
+  const finished = finishSelection(selection);
+  send(res, {
+    type: "decisions", chosen: selection.chosen, scores: selection.scores, ms,
+    ...finished, model: selection.model ?? "jev-latest",
+  });
+  send(res, { type: "done", chosen: selection.chosen, ms });
 }
 
 const server = createServer(async (req, res) => {

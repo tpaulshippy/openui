@@ -1,0 +1,16 @@
+{
+  "name": "jev-buildoff-demo",
+  "private": true,
+  "type": "module",
+  "description": "Build-off demo: same OpenUI Renderer + catalog both sides, evaluator switch (LLM vs Jev)",
+  "scripts": {
+    "build:client": "node client/build.mjs",
+    "demo:benchmark": "node demo.mjs --trials 3",
+    "demo:live": "node live.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
