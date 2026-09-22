@@ -1,0 +1,10 @@
+[
+  { "id": "preferences-panel", "component": "Panel", "description": "Account preferences panel (root container, title 'Account preferences')" },
+  { "id": "name-input", "component": "Input", "description": "Editable name field, bound to /name state" },
+  { "id": "email-input", "component": "Input", "description": "Editable email field, bound to /email state" },
+  { "id": "avatar", "component": "Avatar", "description": "Profile avatar image, bound to /avatarUrl state" },
+  { "id": "save-button", "component": "Button", "description": "Save preferences button, triggers savePreferences with current name" },
+  { "id": "reset-button", "component": "Button", "description": "Reset form button, restores default field values" },
+  { "id": "orders-table", "component": "Table", "description": "Orders history table (unrelated to preferences form)" },
+  { "id": "revenue-chart", "component": "Chart", "description": "Weekly revenue chart (unrelated to preferences form)" }
+]

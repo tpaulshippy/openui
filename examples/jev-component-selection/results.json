@@ -1,0 +1,104 @@
+{
+  "state": "Create account preferences with a name field and Save button. The form edits the user's display name and persists it on save.",
+  "trials": 3,
+  "generatedAt": "2026-09-22T04:15:13.741Z",
+  "baseline": {
+    "model": "gpt-4o-mini",
+    "timesMs": [
+      2498.742855,
+      1232.1864289999999,
+      1379.7318930000001
+    ],
+    "runs": [
+      {
+        "ms": 2498.742855,
+        "chosen": [
+          "preferences-panel",
+          "name-input",
+          "save-button"
+        ]
+      },
+      {
+        "ms": 1232.1864289999999,
+        "chosen": [
+          "preferences-panel",
+          "name-input",
+          "save-button"
+        ]
+      },
+      {
+        "ms": 1379.7318930000001,
+        "chosen": [
+          "preferences-panel",
+          "name-input",
+          "save-button"
+        ]
+      }
+    ]
+  },
+  "jev": {
+    "model": "jev-1.13.0",
+    "timesMs": [
+      229.16192699999965,
+      130.5991479999998,
+      212.2990919999993
+    ],
+    "runs": [
+      {
+        "ms": 229.16192699999965,
+        "chosen": [
+          "preferences-panel",
+          "name-input",
+          "save-button"
+        ],
+        "scores": {
+          "preferences-panel": 0.89,
+          "name-input": 0.97,
+          "email-input": 0.04,
+          "avatar": 0.09,
+          "save-button": 0.97,
+          "reset-button": 0.16,
+          "orders-table": 0.02,
+          "revenue-chart": 0.02
+        }
+      },
+      {
+        "ms": 130.5991479999998,
+        "chosen": [
+          "preferences-panel",
+          "name-input",
+          "save-button"
+        ],
+        "scores": {
+          "preferences-panel": 0.9,
+          "name-input": 0.97,
+          "email-input": 0.04,
+          "avatar": 0.09,
+          "save-button": 0.97,
+          "reset-button": 0.16,
+          "orders-table": 0.02,
+          "revenue-chart": 0.02
+        }
+      },
+      {
+        "ms": 212.2990919999993,
+        "chosen": [
+          "preferences-panel",
+          "name-input",
+          "save-button"
+        ],
+        "scores": {
+          "preferences-panel": 0.9,
+          "name-input": 0.97,
+          "email-input": 0.05,
+          "avatar": 0.08,
+          "save-button": 0.97,
+          "reset-button": 0.17,
+          "orders-table": 0.02,
+          "revenue-chart": 0.02
+        }
+      }
+    ]
+  },
+  "speedupMedian": 6.499000443204933
+}
