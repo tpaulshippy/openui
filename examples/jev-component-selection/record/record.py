@@ -36,7 +36,7 @@ def main() -> None:
             # Done when the badge names both sides (covers the faster
             # and the fallback outcomes).
             page.wait_for_function(
-                "() => document.getElementById('badge').textContent.includes('vs baseline')",
+                "() => document.getElementById('badge')?.textContent?.includes('vs baseline') ?? false",
                 timeout=120000,
             )
             print("BADGE:", page.locator("#badge").text_content())
