@@ -5,23 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Live build-off: LLM baseline vs Jev</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; max-width: 1180px; }
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; max-width: 1180px;
+    background: #0f1115; color: #e8eaed; }
   h1 { font-size: 22px; margin: 0 0 4px; }
-  p.sub { color: #555; margin: 0 0 12px; }
-  #build { font-size: 16px; padding: 10px 22px; border-radius: 8px; cursor: pointer; }
-  #badge { display: inline-block; margin-left: 12px; padding: 6px 14px; border-radius: 999px; background: #e6f4ea; font-weight: 700; }
+  p.sub { color: #9aa0a6; margin: 0 0 12px; }
+  p.sub code { background: #22262e; padding: 1px 5px; border-radius: 5px; }
+  #build { font-size: 16px; padding: 10px 22px; border-radius: 8px; cursor: pointer;
+    background: #2b303b; color: #e8eaed; border: 1px solid #4a5160; }
+  #build:hover { background: #353b47; }
+  #badge { display: inline-block; margin-left: 12px; padding: 6px 14px; border-radius: 999px;
+    background: #1e3a2a; color: #a8e6b0; font-weight: 700; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
-  .card { border: 1px solid #ccc; border-radius: 12px; padding: 14px; min-height: 420px; }
+  .card { border: 1px solid #333a45; border-radius: 12px; padding: 14px; min-height: 420px;
+    background: #161a21; }
   .card h2 { margin: 0 0 4px; font-size: 16px; }
-  .timer { font-variant-numeric: tabular-nums; color: #111; font-weight: 700; font-size: 28px; }
-  .stream { background: #111; color: #9f9; border-radius: 8px; padding: 10px; height: 130px; overflow: auto;
+  .timer { font-variant-numeric: tabular-nums; color: #fff; font-weight: 700; font-size: 28px; }
+  .stream { background: #0a0c10; color: #9f9; border: 1px solid #2a2f38; border-radius: 8px;
+    padding: 10px; height: 130px; overflow: auto;
     font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; margin: 8px 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; min-height: 64px; }
-  .chip { padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #eee; }
-  .chip.in { background: #d3e7ff; }
-  .chip.out { background: #f1f1f1; color: #888; text-decoration: line-through; }
-  .mock { border: 1px dashed #999; border-radius: 8px; padding: 12px; min-height: 120px; }
-  small { color: #666; }
+  .chip { padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #2a2e37; color: #c9cdd4; }
+  .chip.in { background: #1a3a5c; color: #8ab4f8; }
+  .chip.out { background: #202329; color: #5f6368; text-decoration: line-through; }
+  .mock { border: 1px dashed #4a5160; border-radius: 8px; padding: 12px; min-height: 120px; }
+  small { color: #9aa0a6; }
+  small code { background: #22262e; padding: 1px 5px; border-radius: 5px; }
 </style>
 </head>
 <body>
