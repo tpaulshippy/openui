@@ -17,7 +17,23 @@ Same 8 candidates (`candidates.json`), same request:
 `index.html` renders the side-by-side result from `results.json`
 (timing bars, chosen ids, mock preview). No keys in the page.
 
-## Run
+## Live build-off (realistic UI construction)
+
+`live.mjs` + `live.html` hit the live APIs while two interfaces build side by side:
+
+```bash
+set -a; source ~/shared_config; set +a
+node live.mjs [--port 8123]
+# open http://localhost:8123/live.html → "Build both interfaces"
+```
+
+Left streams real `gpt-4o-mini` tokens into a console and renders the
+preferences form when the stream completes. Right makes one real
+`jev-latest` round trip (all 8 decisions arrive together), flips candidate
+chips, then renders the same form. Timers and the speedup badge are measured
+live, so numbers vary run to run.
+
+## Benchmark (timed runs)
 
 ```bash
 set -a; source ~/shared_config; set +a

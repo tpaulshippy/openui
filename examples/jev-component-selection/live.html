@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live build-off: LLM baseline vs Jev</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; max-width: 1180px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: #555; margin: 0 0 12px; }
+  #build { font-size: 16px; padding: 10px 22px; border-radius: 8px; cursor: pointer; }
+  #badge { display: inline-block; margin-left: 12px; padding: 6px 14px; border-radius: 999px; background: #e6f4ea; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  .card { border: 1px solid #ccc; border-radius: 12px; padding: 14px; min-height: 420px; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .timer { font-variant-numeric: tabular-nums; color: #333; font-weight: 600; }
+  .stream { background: #111; color: #9f9; border-radius: 8px; padding: 10px; height: 130px; overflow: auto;
+    font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; margin: 8px 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; min-height: 64px; }
+  .chip { padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #eee; }
+  .chip.in { background: #d3e7ff; }
+  .chip.out { background: #f1f1f1; color: #888; text-decoration: line-through; }
+  .mock { border: 1px dashed #999; border-radius: 8px; padding: 12px; min-height: 120px; }
+  small { color: #666; }
+</style>
+</head>
+<body>
+<h1>Live build-off: building the same preferences UI</h1>
+<p class="sub">Left: <code>gpt-4o-mini</code> streams JSON tokens, UI renders when the stream finishes.
+Right: one <code>jev-latest</code> round trip returns all 8 decisions at once, then the UI renders.
+Both hit live APIs — watch the timers.</p>
+<button id="build">Build both interfaces</button><span id="badge">press Build</span>
+<div class="grid">
+  <div class="card">
+    <h2>Without Jev — LLM token stream</h2>
+    <div class="timer" id="t-base">0 ms</div>
+    <div class="stream" id="s-base">(tokens appear here)</div>
+    <div class="mock" id="m-base">(interface renders here)</div>
+  </div>
+  <div class="card">
+    <h2>With Jev — batched decisions</h2>
+    <div class="timer" id="t-jev">0 ms</div>
+    <div class="stream" id="s-jev" style="color:#8cf">(decision response appears here)</div>
+    <div class="chips" id="chips"></div>
+    <div class="mock" id="m-jev">(interface renders here)</div>
+  </div>
+</div>
+<p><small>Chip stagger is presentational only — all 8 Jev decisions arrive together in the single
+response. Reproduce: <code>set -a; source ~/shared_config; set +a; node live.mjs</code>, open this page.</small></p>
+<script>
+const CANDIDATES = ["preferences-panel","name-input","email-input","avatar","save-button","reset-button","orders-table","revenue-chart"];
+function mock(chosen) {
+  const has = (id) => chosen.includes(id);
+  return `<strong>Account preferences</strong><br/>`
+    + (has("name-input") ? `<label>Name <input value="" placeholder="Ada" /></label><br/>` : ``)
+    + (has("email-input") ? `<label>Email <input value="" placeholder="ada@x.com" /></label><br/>` : ``)
+    + (has("avatar") ? `<div>[avatar]</div>` : ``)
+    + (has("save-button") ? `<button>Save</button>` : ``)
+    + (has("reset-button") ? `<button>Reset</button>` : ``)
+    + (has("orders-table") ? `<div>[orders table]</div>` : ``)
+    + (has("revenue-chart") ? `<div>[revenue chart]</div>` : ``);
+}
+async function run(mode, onEvent) {
+  const res = await fetch("./api/build", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) });
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split("\n\n");
+    buf = parts.pop();
+    for (const p of parts)
+      for (const line of p.split("\n")) {
+        const t = line.trim();
+        if (t.startsWith("data:")) onEvent(JSON.parse(t.slice(5).trim()));
+      }
+  }
+}
+function tick(el, t0) {
+  const id = setInterval(() => { el.textContent = `${Math.round(performance.now() - t0)} ms`; }, 50);
+  return () => clearInterval(id);
+}
+document.getElementById("build").onclick = async () => {
+  const badge = document.getElementById("badge");
+  badge.textContent = "building…";
+  const sBase = document.getElementById("s-base"), mBase = document.getElementById("m-base"), tBase = document.getElementById("t-base");
+  const sJev = document.getElementById("s-jev"), mJev = document.getElementById("m-jev"), tJev = document.getElementById("t-jev");
+  const chips = document.getElementById("chips");
+  sBase.textContent = ""; mBase.textContent = "(interface renders here)";
+  sJev.textContent = ""; mJev.textContent = "(interface renders here)"; chips.innerHTML = "";
+  let baseMs = 0, jevMs = 0;
+  const p1 = (async () => {
+    const t0 = performance.now(), stop = tick(tBase, t0);
+    await run("baseline", (e) => {
+      if (e.type === "token") sBase.textContent += e.text;
+      if (e.type === "done") { baseMs = e.ms; mBase.innerHTML = mock(e.chosen); }
+      if (e.type === "error") sBase.textContent = "ERROR: " + e.message;
+    });
+    stop(); tBase.textContent = `${Math.round(baseMs)} ms`;
+  })();
+  const p2 = (async () => {
+    const t0 = performance.now(), stop = tick(tJev, t0);
+    await run("jev", (e) => {
+      if (e.type === "status") sJev.textContent = e.text;
+      if (e.type === "decisions") {
+        jevMs = e.ms;
+        sJev.textContent = `all 8 decisions in ${Math.round(e.ms)}ms (single response)`;
+        chips.innerHTML = CANDIDATES.map((c) => `<span class="chip" id="chip-${c}">${c}</span>`).join("");
+        CANDIDATES.forEach((c, i) => setTimeout(() => {
+          const el = document.getElementById("chip-" + c);
+          if (el) el.classList.add(e.chosen.includes(c) ? "in" : "out");
+        }, 120 * i));
+        setTimeout(() => { mJev.innerHTML = mock(e.chosen); }, 120 * CANDIDATES.length);
+      }
+      if (e.type === "error") sJev.textContent = "ERROR: " + e.message;
+    });
+    stop(); tJev.textContent = `${Math.round(jevMs)} ms`;
+  })();
+  await Promise.all([p1, p2]);
+  badge.textContent = `Jev ${Math.round(jevMs)}ms vs baseline ${Math.round(baseMs)}ms — ${(baseMs / jevMs).toFixed(1)}x faster (live)`;
+};
+</script>
+</body>
+</html>
