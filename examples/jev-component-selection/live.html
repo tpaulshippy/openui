@@ -13,7 +13,7 @@
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
   .card { border: 1px solid #ccc; border-radius: 12px; padding: 14px; min-height: 420px; }
   .card h2 { margin: 0 0 4px; font-size: 16px; }
-  .timer { font-variant-numeric: tabular-nums; color: #333; font-weight: 600; }
+  .timer { font-variant-numeric: tabular-nums; color: #111; font-weight: 700; font-size: 28px; }
   .stream { background: #111; color: #9f9; border-radius: 8px; padding: 10px; height: 130px; overflow: auto;
     font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; margin: 8px 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; min-height: 64px; }
@@ -27,7 +27,8 @@
 <body>
 <h1>Live build-off: building the same preferences UI</h1>
 <p class="sub">Left: <code>gpt-4o-mini</code> streams JSON tokens, UI renders when the stream finishes.
-Right: one <code>jev-latest</code> round trip returns all 8 decisions at once, then the UI renders.
+Right: one <code>jev-latest</code> round trip returns all 28 decisions at once, then
+the UI renders.
 Both hit live APIs — watch the timers.</p>
 <button id="build">Build both interfaces</button><span id="badge">press Build</span>
 <div class="grid">
@@ -48,17 +49,33 @@ Both hit live APIs — watch the timers.</p>
 <p><small>Chip stagger is presentational only — all 8 Jev decisions arrive together in the single
 response. Reproduce: <code>set -a; source ~/shared_config; set +a; node live.mjs</code>, open this page.</small></p>
 <script>
-const CANDIDATES = ["preferences-panel","name-input","email-input","avatar","save-button","reset-button","orders-table","revenue-chart"];
+const CANDIDATES = ["orders-table","revenue-kpi","orders-kpi","customers-kpi","churn-kpi","revenue-line","revenue-bars","traffic-chart","customers-table","inventory-table","preferences-panel","name-input","email-input","avatar","save-button","reset-button","export-button","date-filter","search-bar","login-card","signup-form","pricing-table","testimonials","faq-accordion","notifications","calendar-widget","map-widget","chat-widget"];
 function mock(chosen) {
   const has = (id) => chosen.includes(id);
-  return `<strong>Account preferences</strong><br/>`
-    + (has("name-input") ? `<label>Name <input value="" placeholder="Ada" /></label><br/>` : ``)
-    + (has("email-input") ? `<label>Email <input value="" placeholder="ada@x.com" /></label><br/>` : ``)
-    + (has("avatar") ? `<div>[avatar]</div>` : ``)
-    + (has("save-button") ? `<button>Save</button>` : ``)
-    + (has("reset-button") ? `<button>Reset</button>` : ``)
-    + (has("orders-table") ? `<div>[orders table]</div>` : ``)
-    + (has("revenue-chart") ? `<div>[revenue chart]</div>` : ``);
+  let h = "";
+  if (has("orders-table")) h += `<div><strong>Orders</strong><br/>[#1001 Ada $42 paid] [#1002 Bo $18 shipped]</div>`;
+  const kpis = ["revenue-kpi","orders-kpi","customers-kpi","churn-kpi"].filter(has);
+  if (kpis.length) h += `<div style="display:flex;gap:8px;margin:6px 0">` + kpis.map((k) =>
+    `<div style="border:1px solid #999;border-radius:6px;padding:6px 10px">${k.replace("-kpi","").toUpperCase()}<br/><strong>1,024</strong></div>`).join("") + `</div>`;
+  if (has("revenue-line")) h += `<div>[weekly revenue line chart /\\ ]</div>`;
+  if (has("revenue-bars")) h += `<div>[weekly revenue bar chart |||]</div>`;
+  if (has("traffic-chart")) h += `<div>[traffic area chart]</div>`;
+  if (has("customers-table")) h += `<div>[customers table]</div>`;
+  if (has("inventory-table")) h += `<div>[inventory table]</div>`;
+  if (has("preferences-panel")) {
+    h += `<div style="margin-top:6px"><strong>Account preferences</strong><br/>`
+      + (has("name-input") ? `<label>Name <input value="" placeholder="Ada" /></label><br/>` : ``)
+      + (has("email-input") ? `<label>Email <input value="" placeholder="ada@x.com" /></label><br/>` : ``)
+      + (has("avatar") ? `<div>[avatar]</div>` : ``)
+      + (has("save-button") ? `<button>Save</button>` : ``)
+      + (has("reset-button") ? `<button>Reset</button>` : ``) + `</div>`;
+  }
+  for (const [id, label] of [["export-button","Export CSV"],["date-filter","[date range]"],["search-bar","[search]"],
+      ["login-card","[login]"],["signup-form","[signup]"],["pricing-table","[pricing]"],["testimonials","[testimonials]"],
+      ["faq-accordion","[faq]"],["notifications","[notifications]"],["calendar-widget","[calendar]"],
+      ["map-widget","[map]"],["chat-widget","[chat]"]])
+    if (has(id)) h += (id.endsWith("button") ? `<button>${label}</button>` : `<div>${label}</div>`);
+  return h || "(nothing selected)";
 }
 async function run(mode, onEvent) {
   const res = await fetch("./api/build", { method: "POST",
@@ -91,10 +108,14 @@ document.getElementById("build").onclick = async () => {
   const chips = document.getElementById("chips");
   sBase.textContent = ""; mBase.textContent = "(interface renders here)";
   sJev.textContent = ""; mJev.textContent = "(interface renders here)"; chips.innerHTML = "";
-  let baseMs = 0, jevMs = 0;
+  let baseMs = 0, jevMs = 0, jevDone = false, baseDone = false;
+  const interim = () => {
+    if (jevDone && !baseDone) badge.textContent = `✓ Jev done in ${Math.round(jevMs)}ms — still waiting on baseline…`;
+  };
   const p1 = (async () => {
     const t0 = performance.now(), stop = tick(tBase, t0);
     await run("baseline", (e) => {
+      if (e.type === "phase") sBase.textContent += e.text;
       if (e.type === "token") sBase.textContent += e.text;
       if (e.type === "done") { baseMs = e.ms; mBase.innerHTML = mock(e.chosen); }
       if (e.type === "error") sBase.textContent = "ERROR: " + e.message;
@@ -106,8 +127,8 @@ document.getElementById("build").onclick = async () => {
     await run("jev", (e) => {
       if (e.type === "status") sJev.textContent = e.text;
       if (e.type === "decisions") {
-        jevMs = e.ms;
-        sJev.textContent = `all 8 decisions in ${Math.round(e.ms)}ms (single response)`;
+        jevMs = e.ms; jevDone = true;
+        sJev.textContent = `all ${CANDIDATES.length} decisions in ${Math.round(e.ms)}ms (single response)`;
         chips.innerHTML = CANDIDATES.map((c) => `<span class="chip" id="chip-${c}">${c}</span>`).join("");
         CANDIDATES.forEach((c, i) => setTimeout(() => {
           const el = document.getElementById("chip-" + c);
@@ -118,6 +139,7 @@ document.getElementById("build").onclick = async () => {
       if (e.type === "error") sJev.textContent = "ERROR: " + e.message;
     });
     stop(); tJev.textContent = `${Math.round(jevMs)} ms`;
+    interim();
   })();
   await Promise.all([p1, p2]);
   badge.textContent = `Jev ${Math.round(jevMs)}ms vs baseline ${Math.round(baseMs)}ms — ${(baseMs / jevMs).toFixed(1)}x faster (live)`;

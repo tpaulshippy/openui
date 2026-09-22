@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * Live build-off server: realistic UI-being-built demo.
+ * Live build-off server: realistic UI-being-built demo (28-candidate
+ * dashboard + preferences task — big enough that the LLM baseline takes
+ * several seconds while the single batched Jev round trip stays flat).
  *
  * Serves this directory statically plus two SSE endpoints that use REAL APIs:
  * - POST /api/build {"mode":"baseline"} → streams REAL OpenAI
@@ -20,10 +22,12 @@ import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dir = dirname(fileURLToPath(import.meta.url));
-const candidates = JSON.parse(readFileSync(join(dir, "candidates.json"), "utf8"));
+const candidates = JSON.parse(readFileSync(join(dir, "candidates-live.json"), "utf8"));
 const STATE =
-  "Create account preferences with a name field and Save button. " +
-  "The form edits the user's display name and persists it on save.";
+  "Build a sales dashboard with an orders table on top, then a KPI row " +
+  "with revenue, orders and new-customers metrics, then a weekly revenue " +
+  "line chart, plus an account preferences panel with a display-name field " +
+  "and a Save button.";
 
 const TYPESAFE_API_KEY = process.env.TYPESAFE_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -34,16 +38,12 @@ if (!TYPESAFE_API_KEY || !OPENAI_API_KEY) {
 
 const MIME = { ".html": "text/html", ".json": "application/json", ".mjs": "text/javascript", ".md": "text/markdown" };
 
-function candidateList() {
-  return candidates.map((c) => `- ${c.id} (${c.component}): ${c.description}`).join("\n");
-}
-
 function send(res, obj) {
   res.write(`data: ${JSON.stringify(obj)}\n\n`);
 }
 
-async function handleBaseline(res) {
-  const started = performance.now();
+async function baselinePhase(res, label, group, aspect, acc) {
+  send(res, { type: "phase", text: `\n[${label}] ${aspect}\n` });
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
@@ -53,7 +53,7 @@ async function handleBaseline(res) {
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: "You select UI components for a generative-UI composer. Reply with JSON only: {\"chosen\": [\"<candidate-id>\", ...]} using exactly the candidate ids given." },
-        { role: "user", content: `Request: ${STATE}\n\nCandidates:\n${candidateList()}` },
+        { role: "user", content: `Request: ${STATE}\n\nYour aspect: ${aspect}\n\nCandidates:\n${group.map((c) => `- ${c.id} (${c.component}): ${c.description}`).join("\n")}` },
       ],
     }),
   });
@@ -84,20 +84,38 @@ async function handleBaseline(res) {
       }
     }
   }
+  try {
+    for (const id of JSON.parse(raw).chosen ?? []) acc.add(id);
+  } catch { /* fall through */ }
+}
+
+// The baseline mirrors how an agent loop builds a dashboard incrementally:
+// three sequential LLM calls (data → visuals → form), one per aspect.
+const PHASES = [
+  { label: "phase 1/3", aspect: "Choose only the data components (orders table on top; revenue, orders, new-customers KPI row).", ids: ["orders-table", "revenue-kpi", "orders-kpi", "customers-kpi", "churn-kpi", "customers-table", "inventory-table", "pricing-table", "export-button", "date-filter"] },
+  { label: "phase 2/3", aspect: "Choose only the chart for weekly revenue (line variant preferred) and reject unrelated widgets.", ids: ["revenue-line", "revenue-bars", "traffic-chart", "map-widget", "calendar-widget", "notifications", "testimonials", "faq-accordion"] },
+  { label: "phase 3/3", aspect: "Choose only the account preferences panel with display-name field and Save button.", ids: ["preferences-panel", "name-input", "email-input", "avatar", "save-button", "reset-button", "search-bar", "login-card", "signup-form", "chat-widget"] },
+];
+
+async function handleBaseline(res) {
+  const started = performance.now();
+  const acc = new Set();
+  for (const p of PHASES) {
+    await baselinePhase(res, p.label, p.ids.map((id) => candidates.find((c) => c.id === id)), p.aspect, acc);
+  }
   const ms = performance.now() - started;
-  let chosen = [];
-  try { chosen = JSON.parse(raw).chosen ?? []; } catch { /* fall through */ }
+  const chosen = candidates.map((c) => c.id).filter((id) => acc.has(id));
   send(res, { type: "done", chosen, ms });
 }
 
 async function handleJev(res) {
-  send(res, { type: "status", text: "1 round trip: evaluating 8 candidates in parallel…" });
+  send(res, { type: "status", text: `1 round trip: evaluating ${candidates.length} candidates in parallel…` });
   const questions = {};
   for (const c of candidates) {
     questions[`include_${c.id.replaceAll("-", "_")}`] = {
       type: "noul",
       instructions: `Request: ${STATE}. Should the candidate "${c.id}" (${c.component}: ${c.description}) be included in the composed UI?`,
-      criteria: { true: "Needed for the requested preferences form (panel, name field, save action)", false: "Unrelated, redundant, or not requested" },
+      criteria: { true: "Needed for the requested dashboard (orders table, revenue/orders/customers KPIs, revenue line chart, preferences panel with name field and save)", false: "Unrelated, redundant, or not requested" },
     };
   }
   const started = performance.now();

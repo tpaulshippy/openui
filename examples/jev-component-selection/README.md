@@ -27,11 +27,12 @@ node live.mjs [--port 8123]
 # open http://localhost:8123/live.html → "Build both interfaces"
 ```
 
-Left streams real `gpt-4o-mini` tokens into a console and renders the
-preferences form when the stream completes. Right makes one real
-`jev-latest` round trip (all 8 decisions arrive together), flips candidate
-chips, then renders the same form. Timers and the speedup badge are measured
-live, so numbers vary run to run.
+Left streams a real `gpt-4o-mini` agent loop (three sequential phased calls —
+data → charts → form — mirroring incremental dashboard construction) and
+renders the dashboard when the phases complete. Right makes one real
+`jev-latest` round trip (all 28 decisions arrive together), flips candidate
+chips, then renders the same dashboard. Timers and the speedup badge are measured
+live, so numbers vary run to run (typical: ~0.3s vs ~2.5–3.5s).
 
 ## Benchmark (timed runs)
 
