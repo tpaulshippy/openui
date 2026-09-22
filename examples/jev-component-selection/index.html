@@ -25,9 +25,10 @@
 </style>
 </head>
 <body>
-<h1>Component-candidate selection: without Jev vs with Jev</h1>
-<p class="sub">Same 8 candidates, same request. Baseline = one <code>gpt-4o-mini</code> JSON-mode call.
-Jev = one <code>jev-latest</code> call with 8 batched Noul questions (single round trip).</p>
+<h1>Jev composer vs LLM baseline (LLM only on unavailable)</h1>
+<p class="sub">Same request. Baseline = full <code>lib.prompt()</code> → <code>gpt-4o-mini</code> generates openui-lang.
+Jev arm = one <code>jev-latest</code> round trip → <code>composeProgram(chosen)</code> → validated Lang, 0 LLM tokens.
+Fallback (flagged) runs one LLM call only when Jev reports unavailable.</p>
 <div class="card">
   <span class="badge" id="speedup">loading results.json…</span>
   <div class="bar"><div id="bar-jev" style="width:0;background:#1a73e8"></div></div>
@@ -65,27 +66,19 @@ async function main() {
   document.getElementById("bar-jev").style.width = (100 * jMed / max) + "%";
   document.getElementById("bar-base").style.width = (100 * bMed / max) + "%";
   document.getElementById("speedup").textContent =
-    `Jev median ${jMed.toFixed(0)}ms vs baseline ${bMed.toFixed(0)}ms — ${r.speedupMedian.toFixed(1)}x faster`;
+    `Baseline median ${bMed.toFixed(0)}ms vs Jev median ${jMed.toFixed(0)}ms — fallback rate ${((r.jev.fallbackRate ?? 0) * 100).toFixed(0)}%`;
   document.getElementById("timing").textContent =
-    `Generated ${r.generatedAt}. Trials: ${r.trials}. Baseline model: ${r.baseline.model}. Jev model: ${r.jev.model}.`;
+    `Generated ${r.generatedAt}. Trials: ${r.trials}. ${r.design ?? ""}`;
   const last = (arr) => arr[arr.length - 1];
   const b = last(r.baseline.runs), j = last(r.jev.runs);
-  document.getElementById("base-meta").textContent = `${b.ms.toFixed(0)}ms (last run), chosen ${b.chosen.length}`;
-  document.getElementById("jev-meta").textContent = `${j.ms.toFixed(0)}ms (last run), chosen ${j.chosen.length}`;
-  document.getElementById("base-list").innerHTML = b.chosen.map((c) => `<li><code>${c}</code></li>`).join("") || "<li>—</li>";
-  document.getElementById("jev-list").innerHTML = j.chosen.map((c) =>
-    `<li><code>${c}</code> (noul ${(j.scores[c] ?? 0).toFixed(2)})</li>`).join("") || "<li>—</li>";
-  const mock = (chosen) => `
-    <strong>Account preferences</strong><br/>
-    ${chosen.includes("name-input") ? `<label>Name <input value="" placeholder="Ada" /></label><br/>` : ``}
-    ${chosen.includes("email-input") ? `<label>Email <input value="" placeholder="ada@x.com" /></label><br/>` : ``}
-    ${chosen.includes("avatar") ? `<div>[avatar]</div>` : ``}
-    ${chosen.includes("save-button") ? `<button>Save</button>` : ``}
-    ${chosen.includes("reset-button") ? `<button>Reset</button>` : ``}
-    ${chosen.includes("orders-table") ? `<div>[orders table]</div>` : ``}
-    ${chosen.includes("revenue-chart") ? `<div>[revenue chart]</div>` : ``}`;
-  document.getElementById("base-mock").innerHTML = mock(b.chosen);
-  document.getElementById("jev-mock").innerHTML = mock(j.chosen);
+  document.getElementById("base-meta").textContent = `${b.ms.toFixed(0)}ms (last run), prompt ${b.promptChars} chars, parser errors ${b.errors}`;
+  document.getElementById("jev-meta").textContent = `${j.ms.toFixed(0)}ms (select ${j.selectMs?.toFixed(0) ?? "?"}${j.fallback ? `+gen ${j.genMs?.toFixed(0) ?? "?"}` : ", 0 LLM tokens"}, last run), stop ${j.stopReason ?? "?"}${j.fallback ? " FALLBACK" : ""}, parser errors ${j.errors}`;
+  document.getElementById("base-list").innerHTML = `<li><code>${b.errors}</code> parser errors, <code>${b.sourceChars}</code> source chars</li><li>codes: ${(b.errorCodes ?? []).join(", ") || "—"}</li>`;
+  document.getElementById("jev-list").innerHTML =
+    ((j.chosen ?? []).map((c) => `<li><code>${c}</code> (noul ${((j.scores ?? {})[c] ?? 0).toFixed(2)})</li>`).join("") || "<li>—</li>") +
+    `<li><small>max score ${(j.maxScore ?? 0).toFixed(2)}, LLM tokens ${j.llmTokens ?? 0}</small></li>`;
+  document.getElementById("base-mock").innerHTML = `<small>Open <code>live.html</code> → Build to see streamed Lang render through the real Renderer.</small>`;
+  document.getElementById("jev-mock").innerHTML = `<small>Chosen ids: ${(j.chosen ?? []).join(", ") || "—"}</small>`;
 }
 main().catch((e) => { document.getElementById("speedup").textContent = "Could not load results.json: " + e; });
 </script>

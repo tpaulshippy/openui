@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { experimental_createJevEvaluator } from "../evaluator";
-import { experimental_selectCandidates } from "../select";
+import {
+  experimental_componentTypesForChosen,
+  experimental_composeFromChosen,
+  experimental_selectCandidates,
+} from "../select";
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -73,5 +77,81 @@ describe("experimental_selectCandidates", () => {
     expect(selection.scores).toEqual({ a: 0.9, b: 0.2 });
     // One batched call, not one per candidate.
     expect(evaluate).toHaveBeenCalledOnce();
+  });
+
+  it("maps chosen ids to distinct sorted component types", () => {
+    const candidates = [
+      { id: "a", component: "Table", props: {}, description: "t" },
+      { id: "b", component: "KpiCard", props: {}, description: "k" },
+      { id: "c", component: "Table", props: {}, description: "t2" },
+    ];
+    expect(experimental_componentTypesForChosen(candidates, ["c", "a", "b", "missing"])).toEqual([
+      "KpiCard",
+      "Table",
+    ]);
+    expect(experimental_componentTypesForChosen(candidates, [])).toEqual([]);
+  });
+});
+
+describe("experimental_composeFromChosen", () => {
+  const candidates = [
+    { id: "a", component: "Table", props: {}, description: "things" },
+    { id: "b", component: "Table", props: {}, description: "other things" },
+  ];
+  const highConfidence = vi.fn(async () => ({
+    model: "jev-1.13.0",
+    answers: {
+      include_a: { type: "noul", noul: 0.9 },
+      include_b: { type: "noul", noul: 0.1 },
+    },
+    usage: { input_tokens: 10, output_tokens: 0 },
+  }));
+
+  it("finish: composes directly with no LLM when valid", async () => {
+    const compose = vi.fn(async (chosen: string[]) => ({ chosen }));
+    const out = await experimental_composeFromChosen({
+      state: "request",
+      candidates,
+      evaluate: highConfidence,
+      compose,
+      isValid: () => true,
+    });
+    expect(out.stopReason).toBe("finish");
+    expect(out.composed).toEqual({ chosen: ["a"] });
+    expect(compose).toHaveBeenCalledWith(["a"]);
+  });
+
+  it("unavailable on empty selection", async () => {
+    const evaluate = vi.fn(async () => ({
+      model: "jev-1.13.0",
+      answers: {
+        include_a: { type: "noul", noul: 0.1 },
+        include_b: { type: "noul", noul: 0.2 },
+      },
+      usage: { input_tokens: 10, output_tokens: 0 },
+    }));
+    const compose = vi.fn(async (chosen: string[]) => ({ chosen }));
+    const out = await experimental_composeFromChosen({
+      state: "request",
+      candidates,
+      evaluate,
+      compose,
+      isValid: () => true,
+    });
+    expect(out.stopReason).toBe("unavailable");
+    expect(out.composed).toBeUndefined();
+    expect(compose).not.toHaveBeenCalled();
+  });
+
+  it("unavailable when composed output fails validation", async () => {
+    const out = await experimental_composeFromChosen({
+      state: "request",
+      candidates,
+      evaluate: highConfidence,
+      compose: (chosen: string[]) => ({ chosen }),
+      isValid: () => false,
+    });
+    expect(out.stopReason).toBe("unavailable");
+    expect(out.composed).toBeUndefined();
   });
 });

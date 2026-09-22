@@ -95,11 +95,15 @@ export type { ParsedRule, ValidatorFn } from "./utils/validation";
 // ── Jev (experimental decision-model integration, server-side only) ──
 export {
   experimental_candidateQuestions,
+  experimental_componentTypesForChosen,
+  experimental_composeFromChosen,
   experimental_createJevEvaluator,
   experimental_selectCandidates,
 } from "./jev/index";
 export type {
   Experimental_Candidate,
+  Experimental_ComposedFromChosen,
+  Experimental_ComposeStopReason,
   Experimental_JevAnswer,
   Experimental_JevEvaluate,
   Experimental_JevEvaluatorOptions,

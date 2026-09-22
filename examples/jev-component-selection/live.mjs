@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 /**
- * Live build-off server: realistic UI-being-built demo (28-candidate
- * dashboard + preferences task) running on the REAL lang-core library.
+ * Live build-off server: Jev-first composer, LLM only on unavailable.
  *
  * - Catalog: real `defineComponent`/`createLibrary` in catalog.mjs.
- * - Baseline: prompt is `lib.prompt()` (generated, not hand-written); the
- *   streamed openui-lang program is validated with the real `parse` and the
- *   page renders only the validated AST.
- * - Jev: one `jev-latest` round trip over catalog instances; selections are
- *   composed with the real `jsonToOpenUI` and re-validated with `parse`.
+ * - Baseline (left): full `lib.prompt()` as the system prompt; streams real
+ *   openui-lang tokens from gpt-4o-mini, validates with the real `parse`,
+ *   and the page renders only the validated AST.
+ * - Jev (right, primary): one `jev-latest` round trip over the configured
+ *   INSTANCES → `composeProgram(chosen)` → `parse`. The composed UI renders
+ *   immediately on decisions (~0.3s) with 0 LLM tokens. `parse` must yield 0
+ *   errors or the attempt is `unavailable`.
+ * - Fallback: only on `unavailable` (empty/low-confidence selection or parse
+ *   errors) → one gpt-4o-mini call under the filtered (or full) prompt whose
+ *   tokens stream like the baseline. Flagged `fallback: true`.
  *
  * Usage:
  *   node live.mjs [--port 8123]
@@ -23,12 +27,16 @@ const dir = dirname(fileURLToPath(import.meta.url));
 
 import {
   CRITERIA,
+  FULL_PROMPT,
   INSTANCES,
   STATE,
   composeProgram,
+  experimental_composeFromChosen,
   experimental_createJevEvaluator,
-  experimental_selectCandidates,
-  programChildren,
+  filteredLibraryForChosen,
+  lib,
+  paramMap as fullParamMap,
+  parse,
 } from "./catalog.mjs";
 
 const TYPESAFE_API_KEY = process.env.TYPESAFE_API_KEY;
@@ -44,123 +52,139 @@ function send(res, obj) {
   res.write(`data: ${JSON.stringify(obj)}\n\n`);
 }
 
-// THE SWITCH — both arms run the identical library pipeline:
-//   selectCandidates({ state, candidates, evaluate }) → composeProgram → parse → render.
-// Only `evaluate` differs:
-// - baseline: LLM-backed adapter for the Experimental_JevEvaluate interface
-//   (one OpenAI call returning {"chosen": [...]}, tokens forwarded for display).
-// - jev: experimental_createJevEvaluator (one Jev round trip, all parallel).
-
-function createLlmEvaluate(onToken) {
-  return async (state, questions) => {
-    const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        stream: true,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You select UI components for a generative-UI composer. " +
-              "Reply with JSON only: {\"chosen\": [\"<candidate-id>\", ...]} using exactly the candidate ids given.",
-          },
-          {
-            role: "user",
-            content:
-              `Request: ${state}\n\nCandidates:\n` +
-              INSTANCES.map((c) => `- ${c.id} (${c.component}): ${c.description}`).join("\n"),
-          },
-        ],
-      }),
-    });
-    if (!upstream.ok || !upstream.body) throw new Error(`OpenAI HTTP ${upstream.status}`);
-    let raw = "";
-    const reader = upstream.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const parts = buf.split("\n\n");
-      buf = parts.pop() ?? "";
-      for (const part of parts) {
-        for (const line of part.split("\n")) {
-          const t = line.trim();
-          if (!t.startsWith("data:")) continue;
-          const payload = t.slice(5).trim();
-          if (payload === "[DONE]") continue;
-          try {
-            const delta = JSON.parse(payload).choices?.[0]?.delta?.content ?? "";
-            if (delta) {
-              raw += delta;
-              onToken(delta);
-            }
-          } catch { /* keep-alive whitespace */ }
-        }
+/** Stream one OpenAI chat completion as raw text deltas. Returns full text. */
+async function streamLang(res, systemPrompt, onToken) {
+  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      stream: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: STATE },
+      ],
+    }),
+  });
+  if (!upstream.ok || !upstream.body) throw new Error(`OpenAI HTTP ${upstream.status}`);
+  let raw = "";
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const parts = buf.split("\n\n");
+    buf = parts.pop() ?? "";
+    for (const part of parts) {
+      for (const line of part.split("\n")) {
+        const t = line.trim();
+        if (!t.startsWith("data:")) continue;
+        const payload = t.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const delta = JSON.parse(payload).choices?.[0]?.delta?.content ?? "";
+          if (delta) {
+            raw += delta;
+            onToken(delta);
+          }
+        } catch { /* keep-alive whitespace */ }
       }
     }
-    let chosen = [];
-    try {
-      chosen = JSON.parse(raw).chosen ?? [];
-    } catch { /* fall through with empty selection */ }
-    // Map onto Noul-shaped answers so the shared selector consumes both identically.
-    const answers = {};
-    for (const c of INSTANCES) {
-      const qid = `include_${c.id.replaceAll("-", "_")}`;
-      if (questions[qid]) answers[qid] = { type: "noul", noul: chosen.includes(c.id) ? 1 : 0 };
-    }
-    return { model: "gpt-4o-mini", answers, usage: { input_tokens: 0, output_tokens: 0 } };
-  };
+  }
+  return raw;
 }
 
-/** Shared finish: compose the selection into a validated program. */
-function finishSelection(selection) {
-  const { source, result } = composeProgram(selection.chosen);
+function finishSource(source, paramMap) {
+  const result = parse(source, paramMap);
   return {
-    nodes: programChildren(result),
+    source,
     errors: result.meta.errors.length,
     errorCodes: result.meta.errors.map((e) => e.code),
-    source,
   };
 }
 
 async function handleBaseline(res) {
+  send(res, { type: "status", text: `full prompt: ${FULL_PROMPT.length} chars, ${Object.keys(lib.components).length} components…` });
   const started = performance.now();
-  const evaluate = createLlmEvaluate((delta) => send(res, { type: "token", text: delta }));
-  const selection = await experimental_selectCandidates({
-    state: STATE,
-    candidates: INSTANCES,
-    evaluate,
-    criteria: CRITERIA,
-  });
+  const source = await streamLang(res, FULL_PROMPT, (delta) => send(res, { type: "token", text: delta }));
   const ms = performance.now() - started;
-  const finished = finishSelection(selection);
-  send(res, { type: "done", ...finished, ms });
+  const finished = finishSource(source, fullParamMap);
+  send(res, { type: "done", ...finished, ms, promptChars: FULL_PROMPT.length, components: Object.keys(lib.components).sort() });
 }
 
 async function handleJev(res) {
   send(res, { type: "status", text: `1 round trip: evaluating ${INSTANCES.length} candidates in parallel…` });
-  const started = performance.now();
+  const selStarted = performance.now();
   const evaluate = experimental_createJevEvaluator({ apiKey: TYPESAFE_API_KEY });
-  const selection = await experimental_selectCandidates({
+  const attempt = await experimental_composeFromChosen({
     state: STATE,
     candidates: INSTANCES,
     evaluate,
     criteria: CRITERIA,
+    compose: (chosen) => composeProgram(chosen),
+    isValid: ({ result }) => result.meta.errors.length === 0,
   });
-  const ms = performance.now() - started;
-  // All decisions arrived together in the single response; the page may
-  // stagger chip rendering for visibility, which is presentational only.
-  const finished = finishSelection(selection);
+  const selectMs = performance.now() - selStarted;
+  const { selection } = attempt;
+  if (attempt.stopReason === "finish") {
+    // Primary path: render immediately, no LLM tokens.
+    const { source } = attempt.composed;
+    send(res, {
+      type: "decisions",
+      chosen: selection.chosen,
+      scores: selection.scores,
+      maxScore: attempt.maxScore,
+      stopReason: "finish",
+      fallback: false,
+      ms: selectMs,
+      selectMs,
+      promptChars: 0,
+      llmTokens: 0,
+      source,
+      errors: 0,
+      errorCodes: [],
+      model: selection.model ?? "jev-latest",
+    });
+    send(res, { type: "done", chosen: selection.chosen, ms: selectMs, fallback: false, errors: 0 });
+    return;
+  }
+  // Fallback path: LLM only on unavailable.
+  const reason =
+    selection.chosen.length === 0 ? "empty selection" : attempt.maxScore < 0.5 ? "low confidence" : "composed output failed validation";
+  const filtered = selection.chosen.length > 0 ? filteredLibraryForChosen(selection.chosen) : null;
+  const prompt = filtered ? filtered.prompt : FULL_PROMPT;
+  const paramMap = filtered ? filtered.paramMap : fullParamMap;
   send(res, {
-    type: "decisions", chosen: selection.chosen, scores: selection.scores, ms,
-    ...finished, model: selection.model ?? "jev-latest",
+    type: "status",
+    text: `unavailable (${reason}) — LLM fallback under ${filtered ? "filtered" : "full"} prompt…`,
+    chosen: selection.chosen,
+    scores: selection.scores,
+    maxScore: attempt.maxScore,
+    stopReason: "unavailable",
+    selectMs,
+    promptChars: prompt.length,
   });
-  send(res, { type: "done", chosen: selection.chosen, ms });
+  const genStarted = performance.now();
+  const source = await streamLang(res, prompt, (delta) => send(res, { type: "token", text: delta }));
+  const genMs = performance.now() - genStarted;
+  const finished = finishSource(source, paramMap);
+  send(res, {
+    type: "done",
+    ...finished,
+    ms: selectMs + genMs,
+    selectMs,
+    genMs,
+    promptChars: prompt.length,
+    types: filtered ? filtered.types : Object.keys(lib.components).sort(),
+    chosen: selection.chosen,
+    scores: selection.scores,
+    maxScore: attempt.maxScore,
+    stopReason: "unavailable",
+    fallback: true,
+    model: selection.model ?? "jev-latest",
+  });
 }
 
 const server = createServer(async (req, res) => {

@@ -15,10 +15,14 @@ export { experimental_createJevEvaluator } from "./evaluator";
 export type { Experimental_JevEvaluatorOptions } from "./evaluator";
 export {
   experimental_candidateQuestions,
+  experimental_componentTypesForChosen,
+  experimental_composeFromChosen,
   experimental_selectCandidates,
 } from "./select";
 export type {
   Experimental_Candidate,
+  Experimental_ComposedFromChosen,
+  Experimental_ComposeStopReason,
   Experimental_SelectOptions,
   Experimental_Selection,
 } from "./select";

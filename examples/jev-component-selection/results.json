@@ -1,66 +1,120 @@
 {
   "state": "Build a sales dashboard with an orders table on top, then a KPI row with revenue, orders and new-customers metrics, then a weekly revenue line chart, plus an account preferences panel with a display-name field and a Save button.",
   "trials": 3,
-  "generatedAt": "2026-09-22T05:22:25.447Z",
+  "generatedAt": "2026-09-22T06:19:48.112Z",
+  "design": "jev-first composer (composeProgram+parse, no LLM); LLM fallback only on unavailable",
+  "fullPromptChars": 3310,
+  "fullComponents": [
+    "Accordion",
+    "Avatar",
+    "Button",
+    "Calendar",
+    "Carousel",
+    "Chart",
+    "Chat",
+    "Dashboard",
+    "Feed",
+    "Form",
+    "KpiCard",
+    "Map",
+    "Panel",
+    "Select",
+    "Table",
+    "TextInput"
+  ],
   "baseline": {
     "model": "gpt-4o-mini",
     "timesMs": [
-      924.740526,
-      706.5636850000001,
-      836.254543
+      2006.6326940000001,
+      3836.943059,
+      2262.8644990000003
     ],
     "runs": [
       {
-        "ms": 924.740526,
-        "chosen": [
-          "orders-table",
-          "revenue-kpi",
-          "orders-kpi",
-          "customers-kpi",
-          "revenue-line",
-          "preferences-panel",
-          "name-input",
-          "save-button"
-        ]
+        "ms": 2006.6326940000001,
+        "promptChars": 3310,
+        "errors": 0,
+        "errorCodes": [],
+        "sourceChars": 616,
+        "usage": {
+          "prompt_tokens": 789,
+          "completion_tokens": 167,
+          "total_tokens": 956,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
       },
       {
-        "ms": 706.5636850000001,
-        "chosen": [
-          "orders-table",
-          "revenue-kpi",
-          "orders-kpi",
-          "customers-kpi",
-          "revenue-line",
-          "preferences-panel",
-          "name-input",
-          "save-button"
-        ]
+        "ms": 3836.943059,
+        "promptChars": 3310,
+        "errors": 0,
+        "errorCodes": [],
+        "sourceChars": 624,
+        "usage": {
+          "prompt_tokens": 789,
+          "completion_tokens": 168,
+          "total_tokens": 957,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
       },
       {
-        "ms": 836.254543,
-        "chosen": [
-          "orders-table",
-          "revenue-kpi",
-          "orders-kpi",
-          "customers-kpi",
-          "revenue-line",
-          "preferences-panel",
-          "name-input",
-          "save-button"
-        ]
+        "ms": 2262.8644990000003,
+        "promptChars": 3310,
+        "errors": 0,
+        "errorCodes": [],
+        "sourceChars": 611,
+        "usage": {
+          "prompt_tokens": 789,
+          "completion_tokens": 164,
+          "total_tokens": 953,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
       }
     ]
   },
   "jev": {
-    "model": "jev-1.13.0",
+    "selectModel": "jev-1.13.0",
+    "generateModel": "gpt-4o-mini (fallback only)",
     "timesMs": [
-      219.33625499999994,
-      144.13654500000007,
-      160.75925700000016
+      278.5612979999996,
+      132.71931399999994,
+      172.72465100000045
     ],
+    "fallbackRate": 0,
     "runs": [
       {
-        "ms": 219.33625499999994,
+        "ms": 278.5612979999996,
+        "selectMs": 278.5612979999996,
+        "genMs": 0,
+        "promptChars": 0,
+        "llmTokens": 0,
+        "types": [],
         "chosen": [
           "orders-table",
           "revenue-kpi",
@@ -74,50 +128,7 @@
         "scores": {
           "orders-table": 0.98,
           "revenue-kpi": 0.97,
-          "orders-kpi": 0.96,
-          "customers-kpi": 0.96,
-          "churn-kpi": 0.06,
-          "revenue-line": 0.98,
-          "revenue-bars": 0.09,
-          "traffic-chart": 0.03,
-          "customers-table": 0.08,
-          "inventory-table": 0.03,
-          "preferences-panel": 0.98,
-          "name-input": 0.94,
-          "email-input": 0.08,
-          "avatar": 0.1,
-          "save-button": 0.98,
-          "reset-button": 0.1,
-          "export-button": 0.11,
-          "date-filter": 0.37,
-          "search-bar": 0.16,
-          "login-card": 0.03,
-          "signup-form": 0.03,
-          "pricing-table": 0.03,
-          "testimonials": 0.03,
-          "faq-accordion": 0.03,
-          "notifications": 0.04,
-          "calendar-widget": 0.03,
-          "map-widget": 0.03,
-          "chat-widget": 0.03
-        }
-      },
-      {
-        "ms": 144.13654500000007,
-        "chosen": [
-          "orders-table",
-          "revenue-kpi",
-          "orders-kpi",
-          "customers-kpi",
-          "revenue-line",
-          "preferences-panel",
-          "name-input",
-          "save-button"
-        ],
-        "scores": {
-          "orders-table": 0.98,
-          "revenue-kpi": 0.97,
-          "orders-kpi": 0.96,
+          "orders-kpi": 0.97,
           "customers-kpi": 0.97,
           "churn-kpi": 0.06,
           "revenue-line": 0.98,
@@ -126,27 +137,92 @@
           "customers-table": 0.08,
           "inventory-table": 0.03,
           "preferences-panel": 0.98,
-          "name-input": 0.94,
+          "name-input": 0.95,
           "email-input": 0.08,
           "avatar": 0.1,
           "save-button": 0.98,
           "reset-button": 0.1,
           "export-button": 0.11,
-          "date-filter": 0.44,
-          "search-bar": 0.17,
+          "date-filter": 0.41,
+          "search-bar": 0.16,
           "login-card": 0.03,
           "signup-form": 0.02,
-          "pricing-table": 0.02,
-          "testimonials": 0.03,
+          "pricing-table": 0.03,
+          "testimonials": 0.02,
           "faq-accordion": 0.03,
           "notifications": 0.04,
           "calendar-widget": 0.03,
           "map-widget": 0.03,
           "chat-widget": 0.03
-        }
+        },
+        "maxScore": 0.98,
+        "stopReason": "finish",
+        "fallback": false,
+        "errors": 0,
+        "errorCodes": [],
+        "sourceChars": 291
       },
       {
-        "ms": 160.75925700000016,
+        "ms": 132.71931399999994,
+        "selectMs": 132.71931399999994,
+        "genMs": 0,
+        "promptChars": 0,
+        "llmTokens": 0,
+        "types": [],
+        "chosen": [
+          "orders-table",
+          "revenue-kpi",
+          "orders-kpi",
+          "customers-kpi",
+          "revenue-line",
+          "preferences-panel",
+          "name-input",
+          "save-button"
+        ],
+        "scores": {
+          "orders-table": 0.98,
+          "revenue-kpi": 0.97,
+          "orders-kpi": 0.97,
+          "customers-kpi": 0.96,
+          "churn-kpi": 0.06,
+          "revenue-line": 0.98,
+          "revenue-bars": 0.09,
+          "traffic-chart": 0.03,
+          "customers-table": 0.09,
+          "inventory-table": 0.03,
+          "preferences-panel": 0.98,
+          "name-input": 0.93,
+          "email-input": 0.07,
+          "avatar": 0.1,
+          "save-button": 0.98,
+          "reset-button": 0.1,
+          "export-button": 0.11,
+          "date-filter": 0.38,
+          "search-bar": 0.15,
+          "login-card": 0.03,
+          "signup-form": 0.03,
+          "pricing-table": 0.03,
+          "testimonials": 0.02,
+          "faq-accordion": 0.03,
+          "notifications": 0.04,
+          "calendar-widget": 0.03,
+          "map-widget": 0.03,
+          "chat-widget": 0.03
+        },
+        "maxScore": 0.98,
+        "stopReason": "finish",
+        "fallback": false,
+        "errors": 0,
+        "errorCodes": [],
+        "sourceChars": 291
+      },
+      {
+        "ms": 172.72465100000045,
+        "selectMs": 172.72465100000045,
+        "genMs": 0,
+        "promptChars": 0,
+        "llmTokens": 0,
+        "types": [],
         "chosen": [
           "orders-table",
           "revenue-kpi",
@@ -166,18 +242,18 @@
           "revenue-line": 0.98,
           "revenue-bars": 0.1,
           "traffic-chart": 0.03,
-          "customers-table": 0.07,
+          "customers-table": 0.08,
           "inventory-table": 0.03,
           "preferences-panel": 0.98,
           "name-input": 0.93,
-          "email-input": 0.07,
+          "email-input": 0.08,
           "avatar": 0.1,
           "save-button": 0.98,
-          "reset-button": 0.09,
+          "reset-button": 0.1,
           "export-button": 0.12,
-          "date-filter": 0.38,
-          "search-bar": 0.15,
-          "login-card": 0.03,
+          "date-filter": 0.4,
+          "search-bar": 0.17,
+          "login-card": 0.04,
           "signup-form": 0.02,
           "pricing-table": 0.03,
           "testimonials": 0.03,
@@ -186,9 +262,14 @@
           "calendar-widget": 0.03,
           "map-widget": 0.03,
           "chat-widget": 0.03
-        }
+        },
+        "maxScore": 0.98,
+        "stopReason": "finish",
+        "fallback": false,
+        "errors": 0,
+        "errorCodes": [],
+        "sourceChars": 291
       }
     ]
-  },
-  "speedupMedian": 5.201905996617036
+  }
 }
