@@ -70,10 +70,11 @@ node edits.mjs --trials 2   # headless chain → edits-results.json
 ```
 
 Headless medians: first paint (LLM) ~3s once, then tweaks at ~200ms each with
-0 LLM tokens (swap chart variant, drop a KPI, add Export CSV — 0% fallback).
-Live: after Build, three tweak buttons under the panels drive `/api/edit` and
-re-render the Jev side in place; capture with
-`python record/record_edits.py`.
+0 LLM tokens vs ~2.7s per LLM full re-gen (swap chart variant, drop a KPI,
+add Export CSV — 0% fallback).
+Live: after Build, three tweak buttons run each tweak on both panels at once —
+Jev applies one op to its tree while the LLM regenerates the whole baseline UI
+with the follow-up appended; capture with `python record/record_edits.py`.
 
 ## Reproduce the video
 

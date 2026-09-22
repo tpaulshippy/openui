@@ -29,11 +29,11 @@ interface SideState {
 
 const init: SideState = { source: "", ms: 0, errors: 0, running: false, stream: "", promptChars: 0, chosen: [], fallback: false };
 
-async function runBuild(mode: string, onEvent: (e: any) => void) {
-  const res = await fetch("./api/build", {
+async function runBuild(mode: string, onEvent: (e: any) => void, endpoint = "./api/build", extraBody: Record<string, unknown> = {}) {
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify({ mode, ...extraBody }),
   });
   const reader = res.body!.getReader();
   const dec = new TextDecoder();
@@ -175,8 +175,8 @@ function App() {
         <Panel title="With Jev — composes directly" side="jev" state={jev} />
       </div>
       <div className="card" style={{ marginTop: 16 }}>
-        <h2>Follow-up tweaks — Jev edits, no LLM</h2>
-        <p className="sub">Each tweak is one Jev round trip over swap/add/remove ops against the current Jev tree.</p>
+        <h2>Follow-up tweaks — Jev edit vs LLM re-gen, side by side</h2>
+        <p className="sub">Each tweak runs on both panels at once: Jev applies one op to its tree (no LLM) while the LLM regenerates the whole baseline UI with the follow-up appended.</p>
         {FOLLOW_UPS.map((prompt, i) => (
           <button key={prompt} id={`edit-${i + 1}`} onClick={() => runEdit(i)}
             disabled={building || editing || jev.chosen.length === 0}
@@ -194,21 +194,53 @@ function App() {
     if (editing || jev.chosen.length === 0) return;
     setEditing(true);
     setEditStatus(`edit ${index + 1} running…`);
-    try {
-      const res = await fetch("./api/edit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chosen: jev.chosen, prompt: FOLLOW_UPS[index], index }),
-      });
-      const e = await res.json();
-      if (e.stopReason === "finish") {
-        setJev((s) => ({ ...s, source: e.source, errors: 0, ms: e.ms, chosen: e.chosen }));
-        setEditStatus(`edit ${index + 1} done: ${e.topKey} in ${Math.round(e.ms)}ms (no LLM)`);
-      } else {
-        setEditStatus(`edit ${index + 1} unavailable (top ${(e.topScore ?? 0).toFixed(2)}) — tree unchanged`);
+    let jevMs = 0, baseMs = 0, jevOp = "", jevOk = false;
+
+    // Jev side: instant op over the current tree (JSON, no LLM).
+    const pJev = (async () => {
+      try {
+        const res = await fetch("./api/edit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ side: "jev", chosen: jev.chosen, prompt: FOLLOW_UPS[index], index }),
+        });
+        const e = await res.json();
+        if (e.stopReason === "finish") {
+          jevMs = e.ms;
+          jevOp = e.topKey;
+          jevOk = true;
+          setJev((s) => ({ ...s, source: e.source, errors: 0, ms: e.ms, chosen: e.chosen }));
+        } else {
+          setJev((s) => ({ ...s, stream: `edit ${index + 1} unavailable (top ${(e.topScore ?? 0).toFixed(2)}) — tree unchanged` }));
+        }
+      } catch (err) {
+        setJev((s) => ({ ...s, stream: `edit ${index + 1} ERROR: ${String((err as Error)?.message ?? err)}` }));
       }
-    } catch (err) {
-      setEditStatus(`edit ${index + 1} ERROR: ${String((err as Error)?.message ?? err)}`);
+    })();
+
+    // Baseline side: LLM regenerates the whole UI with the follow-up (SSE).
+    const pBase = (async () => {
+      let src = "";
+      await runBuild(`edit-base`, (e: any) => {
+        if (e.type === "status") setBase((s) => ({ ...s, stream: e.text }));
+        if (e.type === "token") {
+          src += e.text;
+          const snap = src;
+          setBase((s) => ({ ...s, running: true, stream: (s.stream + e.text).slice(-2000), source: snap }));
+        }
+        if (e.type === "done") {
+          baseMs = e.ms;
+          setBase((s) => ({ ...s, running: false, ms: e.ms, errors: e.errors, source: e.source, promptChars: e.promptChars ?? 0 }));
+        }
+        if (e.type === "error") setBase((s) => ({ ...s, running: false, stream: "ERROR: " + e.message }));
+      }, "./api/edit", { side: "base", prompt: FOLLOW_UPS[index], index });
+    })();
+
+    await Promise.all([pJev, pBase]);
+    if (jevOk) {
+      setEditStatus(`edit ${index + 1} done: Jev ${jevOp} in ${Math.round(jevMs)}ms (no LLM) vs LLM re-gen ${Math.round(baseMs)}ms — ${(baseMs / Math.max(jevMs, 1)).toFixed(1)}x`);
+    } else {
+      setEditStatus(`edit ${index + 1} unavailable on Jev side — LLM re-gen took ${Math.round(baseMs)}ms`);
     }
     setEditing(false);
   }

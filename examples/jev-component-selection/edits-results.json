@@ -6,16 +6,16 @@
     "Add an Export CSV button to the dashboard."
   ],
   "trials": 2,
-  "generatedAt": "2026-09-22T14:44:01.857Z",
+  "generatedAt": "2026-09-22T16:24:29.410Z",
   "design": "LLM first paint, Jev edit ops (swap/add/remove) after; LLM fallback only on unavailable",
   "fallbackRate": 0,
   "runs": [
     {
-      "initialMs": 2702.593128,
+      "initialMs": 3579.200541,
       "edits": [
         {
           "prompt": "Swap the weekly revenue line chart for the bar variant.",
-          "ms": 295.6182779999999,
+          "ms": 280.62396999999964,
           "ops": 41,
           "stopReason": "finish",
           "topKey": "swap:revenue-line:revenue-bars",
@@ -23,23 +23,27 @@
           "opType": "swap",
           "fallback": false,
           "fallbackMs": 0,
+          "baseMs": 3095.4966889999996,
+          "baseErrors": 0,
           "errors": 0
         },
         {
           "prompt": "Remove the new-customers KPI card.",
-          "ms": 183.28054100000008,
+          "ms": 154.50401500000044,
           "ops": 41,
           "stopReason": "finish",
           "topKey": "remove:customers-kpi",
-          "topScore": 0.9,
+          "topScore": 0.88,
           "opType": "remove",
           "fallback": false,
           "fallbackMs": 0,
+          "baseMs": 2412.2160029999995,
+          "baseErrors": 0,
           "errors": 0
         },
         {
           "prompt": "Add an Export CSV button to the dashboard.",
-          "ms": 232.01904100000002,
+          "ms": 154.86013900000034,
           "ops": 42,
           "stopReason": "finish",
           "topKey": "add:export-button",
@@ -47,28 +51,32 @@
           "opType": "add",
           "fallback": false,
           "fallbackMs": 0,
+          "baseMs": 2751.0687450000005,
+          "baseErrors": 0,
           "errors": 0
         }
       ]
     },
     {
-      "initialMs": 2264.318546,
+      "initialMs": 2029.8825620000007,
       "edits": [
         {
           "prompt": "Swap the weekly revenue line chart for the bar variant.",
-          "ms": 201.20543499999985,
+          "ms": 239.03734900000018,
           "ops": 41,
           "stopReason": "finish",
           "topKey": "swap:revenue-line:revenue-bars",
-          "topScore": 0.92,
+          "topScore": 0.91,
           "opType": "swap",
           "fallback": false,
           "fallbackMs": 0,
+          "baseMs": 1962.0396629999996,
+          "baseErrors": 0,
           "errors": 0
         },
         {
           "prompt": "Remove the new-customers KPI card.",
-          "ms": 179.182092,
+          "ms": 200.36136400000032,
           "ops": 41,
           "stopReason": "finish",
           "topKey": "remove:customers-kpi",
@@ -76,11 +84,13 @@
           "opType": "remove",
           "fallback": false,
           "fallbackMs": 0,
+          "baseMs": 2163.939721999999,
+          "baseErrors": 0,
           "errors": 0
         },
         {
           "prompt": "Add an Export CSV button to the dashboard.",
-          "ms": 173.24554100000023,
+          "ms": 186.258514000001,
           "ops": 42,
           "stopReason": "finish",
           "topKey": "add:export-button",
@@ -88,6 +98,8 @@
           "opType": "add",
           "fallback": false,
           "fallbackMs": 0,
+          "baseMs": 3449.2918119999995,
+          "baseErrors": 0,
           "errors": 0
         }
       ]

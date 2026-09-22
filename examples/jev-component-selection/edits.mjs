@@ -103,24 +103,26 @@ for (let t = 0; t < TRIALS; t++) {
   const edits = [];
   for (const prompt of FOLLOW_UPS) {
     const e = await runJevEditRound(evaluate, current, prompt);
+    // Baseline for the same tweak: LLM regenerates the whole UI.
+    const base = await generateLang(FULL_PROMPT, `${STATE}\n\nFollow-up change: ${prompt}`);
     if (e.stopReason === "finish") {
       current = e.chosen;
-      console.log(`  edit "${prompt.slice(0, 42)}…": ${e.topKey} in ${e.ms.toFixed(0)}ms (no LLM)`);
-      edits.push({ prompt, ...e, fallback: false });
+      console.log(`  edit "${prompt.slice(0, 42)}…": Jev ${e.topKey} ${e.ms.toFixed(0)}ms (no LLM) vs LLM re-gen ${base.ms.toFixed(0)}ms`);
+      edits.push({ prompt, ...e, fallback: false, baseMs: base.ms, baseErrors: base.errors });
     } else {
-      const fb = await generateLang(FULL_PROMPT, `${STATE}\n\nFollow-up change: ${prompt}`);
-      console.log(`  edit "${prompt.slice(0, 42)}…": UNAVAILABLE → LLM fallback ${fb.ms.toFixed(0)}ms`);
-      edits.push({ prompt, ...e, fallback: true, fallbackMs: fb.ms, errors: fb.errors });
+      console.log(`  edit "${prompt.slice(0, 42)}…": UNAVAILABLE → LLM fallback ${base.ms.toFixed(0)}ms`);
+      edits.push({ prompt, ...e, fallback: true, fallbackMs: base.ms, errors: base.errors, baseMs: base.ms, baseErrors: base.errors });
     }
   }
   trials.push({ initialMs: initial.ms, edits });
 }
 
 const editTimes = trials.flatMap((t) => t.edits.filter((e) => !e.fallback).map((e) => e.ms));
+const baseTimes = trials.flatMap((t) => t.edits.map((e) => e.baseMs));
 const fallbackRate = trials.flatMap((t) => t.edits).filter((e) => e.fallback).length / Math.max(1, trials.flatMap((t) => t.edits).length);
-console.log(`\n=== Follow-up edits: Jev tweaks after LLM first paint ===`);
+console.log(`\n=== Follow-up edits: Jev tweaks vs LLM re-gen after LLM first paint ===`);
 console.log(`First paint (LLM) median: ${median(trials.map((t) => t.initialMs)).toFixed(0)}ms`);
-console.log(`Jev edits median: ${editTimes.length ? median(editTimes).toFixed(0) : "n/a"}ms (no LLM), fallback rate ${(fallbackRate * 100).toFixed(0)}%`);
+console.log(`Jev edits median: ${editTimes.length ? median(editTimes).toFixed(0) : "n/a"}ms (no LLM) vs LLM re-gen median: ${baseTimes.length ? median(baseTimes).toFixed(0) : "n/a"}ms, fallback rate ${(fallbackRate * 100).toFixed(0)}%`);
 
 const results = {
   state: STATE,
@@ -141,6 +143,8 @@ const results = {
       opType: e.opType ?? null,
       fallback: e.fallback,
       fallbackMs: e.fallbackMs ?? 0,
+      baseMs: e.baseMs,
+      baseErrors: e.baseErrors ?? 0,
       errors: e.errors ?? 0,
     })),
   })),

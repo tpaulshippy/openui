@@ -55,7 +55,7 @@ function send(res, obj) {
 }
 
 /** Stream one OpenAI chat completion as raw text deltas. Returns full text. */
-async function streamLang(res, systemPrompt, onToken) {
+async function streamLang(res, systemPrompt, onToken, userText = STATE) {
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
@@ -64,7 +64,7 @@ async function streamLang(res, systemPrompt, onToken) {
       stream: true,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: STATE },
+        { role: "user", content: userText },
       ],
     }),
   });
@@ -192,14 +192,33 @@ async function handleJev(res) {
 const server = createServer(async (req, res) => {
   try {
     if (req.method === "POST" && req.url === "/api/edit") {
-      // Follow-up tweak: one Jev edit round over the caller's current tree.
-      // Jev-only in live (no LLM fallback stream); unavailable is reported
-      // honestly so the UI keeps the last good tree.
+      // Follow-up tweak, both sides:
+      // - side=jev: one Jev edit round over the caller's current tree (JSON,
+      //   instant). No LLM. Unavailable keeps the last good tree.
+      // - side=base: the LLM regenerates the whole UI with the follow-up
+      //   appended (SSE token stream, like the baseline build).
       let body = "";
       for await (const chunk of req) body += chunk;
-      const { chosen, prompt, index } = JSON.parse(body || "{}");
-      if (!Array.isArray(chosen) || typeof prompt !== "string" || !FOLLOW_UPS.includes(prompt)) {
+      const { chosen, prompt, index, side } = JSON.parse(body || "{}");
+      if (typeof prompt !== "string" || !FOLLOW_UPS.includes(prompt)) {
         res.writeHead(400).end("unknown edit");
+        return;
+      }
+      if (side === "base") {
+        res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+        try {
+          send(res, { type: "status", text: `LLM regenerating full UI with follow-up…` });
+          const started = performance.now();
+          const source = await streamLang(res, FULL_PROMPT,
+            (delta) => send(res, { type: "token", text: delta }),
+            `${STATE}\n\nFollow-up change: ${prompt}`);
+          const ms = performance.now() - started;
+          const finished = finishSource(source, fullParamMap);
+          send(res, { type: "done", ...finished, ms, promptChars: FULL_PROMPT.length, index });
+        } catch (e) {
+          send(res, { type: "error", message: String(e?.message ?? e) });
+        }
+        res.end();
         return;
       }
       try {
