@@ -68,13 +68,6 @@ function Panel({ title, side, state }: { title: string; side: Side; state: SideS
       <h2>{title}</h2>
       <div className="timer">{ms} ms</div>
       <div className="stream">{state.stream || (side === "base" ? "(tokens appear here)" : "(decision response appears here)")}</div>
-      {side === "jev" && state.chosen.length > 0 && (
-        <div className="chips">
-          {INSTANCES.map((c) => (
-            <span key={c.id} className={`chip${state.chosen.includes(c.id) ? " in" : ""}`}>{c.id}</span>
-          ))}
-        </div>
-      )}
       <div className="mock">
         <DemoStyles />
         {state.source ? (
@@ -83,6 +76,13 @@ function Panel({ title, side, state }: { title: string; side: Side; state: SideS
           "(interface renders here)"
         )}
       </div>
+      {side === "jev" && state.chosen.length > 0 && (
+        <div className="chips">
+          {INSTANCES.map((c) => (
+            <span key={c.id} className={`chip${state.chosen.includes(c.id) ? " in" : ""}`}>{c.id}</span>
+          ))}
+        </div>
+      )}
       {state.errors > 0 && <small style={{ color: "#f08a8a" }}>parser: {state.errors} errors</small>}
     </div>
   );
