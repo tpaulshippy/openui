@@ -56,6 +56,25 @@ node live.mjs                    # open live.html → Build
 chars, parser errors, `stopReason`, `fallback` flag, fallback rate.
 `index.html` visualizes `results.json`.
 
+## Follow-up edits (`edits.mjs` + `/api/edit` + `record/record_edits.py`)
+
+LLM first paint, Jev tweaks after — the edit loop is where per-iteration
+latency matters. `catalog.mjs` enumerates discrete ops against the current
+tree (`buildEditOps`: swap within a component type, remove, add), one Jev
+round trip picks the top op at/above threshold (`composeEdit`), list surgery
+(`applyEditOp`) + `composeProgram` + `parse` must yield 0 errors. LLM
+regenerates only on `unavailable`.
+
+```bash
+node edits.mjs --trials 2   # headless chain → edits-results.json
+```
+
+Headless medians: first paint (LLM) ~3s once, then tweaks at ~200ms each with
+0 LLM tokens (swap chart variant, drop a KPI, add Export CSV — 0% fallback).
+Live: after Build, three tweak buttons under the panels drive `/api/edit` and
+re-render the Jev side in place; capture with
+`python record/record_edits.py`.
+
 ## Reproduce the video
 
 ```bash

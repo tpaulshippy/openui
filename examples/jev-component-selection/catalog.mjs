@@ -120,6 +120,135 @@ export function filteredLibraryForChosen(chosenIds) {
 export const FULL_PROMPT = lib.prompt();
 
 /**
+ * Follow-up edit operations over the current chosen-id list. Each op is a
+ * discrete, reversible list surgery — the same shape as json-render's
+ * add/replace/remove/move protocol, minus move (section ordering is
+ * deterministic here, so order follows automatically).
+ *
+ * - swap: replace a shown instance with an unshown one of the same component
+ *   type (chart variant for chart variant, KPI for KPI).
+ * - remove: drop a shown instance (root Dashboard is never offered).
+ * - add: include an unshown instance.
+ *
+ * Descriptions name current visibility ("shown"/"not shown") so the evaluator
+ * grounds against the tree the user sees. One batched Noul round trip picks
+ * the single best op at/above threshold; anything else is `unavailable`.
+ */
+export function buildEditOps(currentChosen) {
+  const byId = new Map(INSTANCES.map((c) => [c.id, c]));
+  const shown = new Set(currentChosen.filter((id) => byId.has(id)));
+  const ops = [];
+  const show = (id) => (shown.has(id) ? "shown" : "not shown");
+
+  // Swaps within the same component type: shown member -> unshown member.
+  const byType = new Map();
+  for (const c of INSTANCES) {
+    if (!byType.has(c.component)) byType.set(c.component, []);
+    byType.get(c.component).push(c);
+  }
+  for (const [, group] of byType) {
+    if (group.length < 2) continue;
+    for (const from of group.filter((c) => shown.has(c.id))) {
+      for (const to of group.filter((c) => !shown.has(c.id))) {
+        ops.push({
+          key: `swap:${from.id}:${to.id}`,
+          type: "swap",
+          from: from.id,
+          to: to.id,
+          description: `Swap the ${show(from.id)} "${from.description}" for the ${show(to.id)} "${to.description}"`,
+        });
+      }
+    }
+  }
+  // Removes: anything shown (Dashboard root is never a candidate).
+  for (const id of shown) {
+    const c = byId.get(id);
+    ops.push({
+      key: `remove:${id}`,
+      type: "remove",
+      from: id,
+      description: `Remove the shown "${c.description}" and its subtree`,
+    });
+  }
+  // Adds: anything not shown.
+  for (const c of INSTANCES.filter((c) => !shown.has(c.id))) {
+    ops.push({
+      key: `add:${c.id}`,
+      type: "add",
+      to: c.id,
+      description: `Add the ${show(c.id)} "${c.description}" (${c.component})`,
+    });
+  }
+  return ops;
+}
+
+/** Noul questions for one edit round: should this operation be applied? */
+export function editOpQuestions(ops, criteria) {
+  const questions = {};
+  for (const op of ops) {
+    questions[`apply_${op.key.replaceAll(/[^a-zA-Z0-9]/g, "_")}`] = {
+      type: "noul",
+      instructions: `The user asked for a follow-up tweak. Should this edit be applied: ${op.description}? Apply at most the single best-matching edit.`,
+      ...(criteria ? { criteria } : {}),
+    };
+  }
+  return questions;
+}
+
+/** Pure list surgery: apply one op key to the current chosen list. */
+export function applyEditOp(currentChosen, op) {
+  const next = currentChosen.filter((id) => id !== op.from);
+  if ((op.type === "swap" || op.type === "add") && op.to && !next.includes(op.to)) next.push(op.to);
+  return next;
+}
+
+/**
+ * One Jev edit round over the current tree (shared by headless + live).
+ * No LLM on `finish`: top op at/above threshold is applied, recomposed, and
+ * must parse with 0 errors. Anything else is `unavailable` (LLM fallback).
+ */
+export async function composeEdit(evaluate, currentChosen, editPrompt, { threshold = 0.5, criteria = CRITERIA } = {}) {
+  const ops = buildEditOps(currentChosen);
+  const questions = editOpQuestions(ops, criteria);
+  const started = performance.now();
+  const result = await evaluate(editPrompt, questions);
+  const ms = performance.now() - started;
+  const qkey = (op) => `apply_${op.key.replaceAll(/[^a-zA-Z0-9]/g, "_")}`;
+  const scored = ops.map((op) => {
+    const a = result.answers[qkey(op)];
+    return { op, score: a?.type === "noul" ? a.noul : 0 };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored[0];
+  if (!top || top.score < threshold) {
+    return { ms, ops: ops.length, stopReason: "unavailable", topScore: top?.score ?? 0, topKey: top?.op.key ?? null };
+  }
+  const next = applyEditOp(currentChosen, top.op);
+  const { source, result: parsed } = composeProgram(next);
+  if (parsed.meta.errors.length > 0) {
+    return { ms, ops: ops.length, stopReason: "unavailable", topScore: top.score, topKey: top.op.key, parseErrors: parsed.meta.errors.length };
+  }
+  return {
+    ms,
+    ops: ops.length,
+    stopReason: "finish",
+    topScore: top.score,
+    topKey: top.op.key,
+    opType: top.op.type,
+    chosen: next,
+    source,
+    errors: 0,
+  };
+}
+
+/** Preset follow-up chain for the demo (each starts from the previous tree). */
+export const FOLLOW_UPS = [
+  "Swap the weekly revenue line chart for the bar variant.",
+  "Remove the new-customers KPI card.",
+  "Add an Export CSV button to the dashboard.",
+];
+
+/**
  * Jev output path: compose validated Lang from chosen instance ids.
  * Deterministic section ordering + preferences-panel grouping, serialized
  * with the real `jsonToOpenUI` and re-validated with the real `parse`.

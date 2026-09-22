@@ -27,9 +27,11 @@ const dir = dirname(fileURLToPath(import.meta.url));
 
 import {
   CRITERIA,
+  FOLLOW_UPS,
   FULL_PROMPT,
   INSTANCES,
   STATE,
+  composeEdit,
   composeProgram,
   experimental_composeFromChosen,
   experimental_createJevEvaluator,
@@ -189,6 +191,27 @@ async function handleJev(res) {
 
 const server = createServer(async (req, res) => {
   try {
+    if (req.method === "POST" && req.url === "/api/edit") {
+      // Follow-up tweak: one Jev edit round over the caller's current tree.
+      // Jev-only in live (no LLM fallback stream); unavailable is reported
+      // honestly so the UI keeps the last good tree.
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { chosen, prompt, index } = JSON.parse(body || "{}");
+      if (!Array.isArray(chosen) || typeof prompt !== "string" || !FOLLOW_UPS.includes(prompt)) {
+        res.writeHead(400).end("unknown edit");
+        return;
+      }
+      try {
+        const evaluate = experimental_createJevEvaluator({ apiKey: TYPESAFE_API_KEY });
+        const out = await composeEdit(evaluate, chosen, prompt);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ...out, index }));
+      } catch (e) {
+        res.writeHead(500).end(String(e?.message ?? e));
+      }
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/build") {
       let body = "";
       for await (const chunk of req) body += chunk;

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { Renderer } from "../../../packages/react-lang/src/Renderer";
 import { createLibrary, defineComponent } from "../../../packages/react-lang/src/library";
 import { COMPONENT_DEFS } from "../components.mjs";
+import { FOLLOW_UPS } from "../catalog.mjs";
 import { INSTANCES } from "../catalog.mjs";
 import { DemoStyles, IMPLS } from "./components";
 
@@ -96,6 +97,8 @@ function App() {
   const [jev, setJev] = useState<SideState>(init);
   const [badge, setBadge] = useState("press Build");
   const [building, setBuilding] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editStatus, setEditStatus] = useState("build first, then tweak");
 
   const build = async () => {
     if (building) return;
@@ -171,11 +174,44 @@ function App() {
         <Panel title="Without Jev — LLM generates" side="base" state={base} />
         <Panel title="With Jev — composes directly" side="jev" state={jev} />
       </div>
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2>Follow-up tweaks — Jev edits, no LLM</h2>
+        <p className="sub">Each tweak is one Jev round trip over swap/add/remove ops against the current Jev tree.</p>
+        {FOLLOW_UPS.map((prompt, i) => (
+          <button key={prompt} id={`edit-${i + 1}`} onClick={() => runEdit(i)}
+            disabled={building || editing || jev.chosen.length === 0}
+            style={{ marginRight: 8 }}>{prompt}</button>
+        ))}
+        <div id="edit-status" style={{ marginTop: 8 }}>{editStatus}</div>
+      </div>
       <p><small>Keys stay server-side. Jev selects from the catalog only — it cannot invent prose, prop values, or layout.
         Unavailable (empty/low-confidence selection or parse errors) routes to one LLM fallback call, flagged above.
         Reproduce: <code>npm i; node client/build.mjs; node live.mjs</code>, open this page.</small></p>
     </>
   );
+
+  async function runEdit(index: number) {
+    if (editing || jev.chosen.length === 0) return;
+    setEditing(true);
+    setEditStatus(`edit ${index + 1} running…`);
+    try {
+      const res = await fetch("./api/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chosen: jev.chosen, prompt: FOLLOW_UPS[index], index }),
+      });
+      const e = await res.json();
+      if (e.stopReason === "finish") {
+        setJev((s) => ({ ...s, source: e.source, errors: 0, ms: e.ms, chosen: e.chosen }));
+        setEditStatus(`edit ${index + 1} done: ${e.topKey} in ${Math.round(e.ms)}ms (no LLM)`);
+      } else {
+        setEditStatus(`edit ${index + 1} unavailable (top ${(e.topScore ?? 0).toFixed(2)}) — tree unchanged`);
+      }
+    } catch (err) {
+      setEditStatus(`edit ${index + 1} ERROR: ${String((err as Error)?.message ?? err)}`);
+    }
+    setEditing(false);
+  }
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
