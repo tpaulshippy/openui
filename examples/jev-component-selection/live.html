@@ -35,10 +35,10 @@
 </head>
 <body>
 <h1>Live build-off: building the same preferences UI</h1>
-<p class="sub">Left: <code>gpt-4o-mini</code> streams JSON tokens, UI renders when the stream finishes.
-Right: one <code>jev-latest</code> round trip returns all 28 decisions at once, then
-the UI renders.
-Both hit live APIs — watch the timers.</p>
+<p class="sub">Left: one <code>gpt-4o-mini</code> call streams the full composed spec
+(sections + components, in order) — OpenUI's real generation path.
+Right: one <code>jev-latest</code> round trip returns all 28 selection decisions at once;
+grouping/ordering happens in code. Both hit live APIs — watch the timers.</p>
 <button id="build">Build both interfaces</button><span id="badge">press Build</span>
 <div class="grid">
   <div class="card">
@@ -124,7 +124,6 @@ document.getElementById("build").onclick = async () => {
   const p1 = (async () => {
     const t0 = performance.now(), stop = tick(tBase, t0);
     await run("baseline", (e) => {
-      if (e.type === "phase") sBase.textContent += e.text;
       if (e.type === "token") sBase.textContent += e.text;
       if (e.type === "done") { baseMs = e.ms; mBase.innerHTML = mock(e.chosen); }
       if (e.type === "error") sBase.textContent = "ERROR: " + e.message;

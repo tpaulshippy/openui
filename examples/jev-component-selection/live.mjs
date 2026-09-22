@@ -42,8 +42,12 @@ function send(res, obj) {
   res.write(`data: ${JSON.stringify(obj)}\n\n`);
 }
 
-async function baselinePhase(res, label, group, aspect, acc) {
-  send(res, { type: "phase", text: `\n[${label}] ${aspect}\n` });
+// The baseline mirrors OpenUI's real generation path: ONE LLM call that
+// streams the full composed spec — selection + section grouping + ordering —
+// as tokens. More output tokens than a bare id list, which is exactly why it
+// takes seconds on a dashboard-sized task.
+async function handleBaseline(res) {
+  const started = performance.now();
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
@@ -52,8 +56,8 @@ async function baselinePhase(res, label, group, aspect, acc) {
       stream: true,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: "You select UI components for a generative-UI composer. Reply with JSON only: {\"chosen\": [\"<candidate-id>\", ...]} using exactly the candidate ids given." },
-        { role: "user", content: `Request: ${STATE}\n\nYour aspect: ${aspect}\n\nCandidates:\n${group.map((c) => `- ${c.id} (${c.component}): ${c.description}`).join("\n")}` },
+        { role: "system", content: "You are the composer for a generative-UI framework. Reply with JSON only: {\"sections\": [{\"name\": \"orders\" | \"kpis\" | \"chart\" | \"preferences\", \"components\": [\"<candidate-id>\", ...]}]} using exactly the candidate ids given, grouped into sections in display order." },
+        { role: "user", content: `Request: ${STATE}\n\nCandidates:\n${candidates.map((c) => `- ${c.id} (${c.component}): ${c.description}`).join("\n")}` },
       ],
     }),
   });
@@ -84,27 +88,13 @@ async function baselinePhase(res, label, group, aspect, acc) {
       }
     }
   }
-  try {
-    for (const id of JSON.parse(raw).chosen ?? []) acc.add(id);
-  } catch { /* fall through */ }
-}
-
-// The baseline mirrors how an agent loop builds a dashboard incrementally:
-// three sequential LLM calls (data → visuals → form), one per aspect.
-const PHASES = [
-  { label: "phase 1/3", aspect: "Choose only the data components (orders table on top; revenue, orders, new-customers KPI row).", ids: ["orders-table", "revenue-kpi", "orders-kpi", "customers-kpi", "churn-kpi", "customers-table", "inventory-table", "pricing-table", "export-button", "date-filter"] },
-  { label: "phase 2/3", aspect: "Choose only the chart for weekly revenue (line variant preferred) and reject unrelated widgets.", ids: ["revenue-line", "revenue-bars", "traffic-chart", "map-widget", "calendar-widget", "notifications", "testimonials", "faq-accordion"] },
-  { label: "phase 3/3", aspect: "Choose only the account preferences panel with display-name field and Save button.", ids: ["preferences-panel", "name-input", "email-input", "avatar", "save-button", "reset-button", "search-bar", "login-card", "signup-form", "chat-widget"] },
-];
-
-async function handleBaseline(res) {
-  const started = performance.now();
-  const acc = new Set();
-  for (const p of PHASES) {
-    await baselinePhase(res, p.label, p.ids.map((id) => candidates.find((c) => c.id === id)), p.aspect, acc);
-  }
   const ms = performance.now() - started;
-  const chosen = candidates.map((c) => c.id).filter((id) => acc.has(id));
+  const valid = new Set(candidates.map((c) => c.id));
+  let chosen = [];
+  try {
+    const sections = JSON.parse(raw).sections ?? [];
+    chosen = sections.flatMap((s) => s.components ?? []).filter((id) => valid.has(id));
+  } catch { /* fall through with empty selection */ }
   send(res, { type: "done", chosen, ms });
 }
 
