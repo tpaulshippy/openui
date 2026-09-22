@@ -130,11 +130,13 @@ document.getElementById("build").onclick = async () => {
         jevMs = e.ms; jevDone = true;
         sJev.textContent = `all ${CANDIDATES.length} decisions in ${Math.round(e.ms)}ms (single response)`;
         chips.innerHTML = CANDIDATES.map((c) => `<span class="chip" id="chip-${c}">${c}</span>`).join("");
+        // Render the interface immediately — decisions are all in hand.
+        // Chip flips stagger slightly (25ms) as a visual confirmation only.
+        mJev.innerHTML = mock(e.chosen);
         CANDIDATES.forEach((c, i) => setTimeout(() => {
           const el = document.getElementById("chip-" + c);
           if (el) el.classList.add(e.chosen.includes(c) ? "in" : "out");
-        }, 120 * i));
-        setTimeout(() => { mJev.innerHTML = mock(e.chosen); }, 120 * CANDIDATES.length);
+        }, 25 * i));
       }
       if (e.type === "error") sJev.textContent = "ERROR: " + e.message;
     });
