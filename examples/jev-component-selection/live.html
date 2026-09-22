@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live build-off: LLM evaluator vs Jev (real Renderer)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; max-width: 1180px;
+    background: #0f1115; color: #e8eaed; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: #9aa0a6; margin: 0 0 12px; }
+  p.sub code, small code { background: #22262e; padding: 1px 5px; border-radius: 5px; }
+  #build { font-size: 16px; padding: 10px 22px; border-radius: 8px; cursor: pointer;
+    background: #2b303b; color: #e8eaed; border: 1px solid #4a5160; }
+  #build:hover:not(:disabled) { background: #353b47; }
+  #build:disabled { opacity: .6; cursor: default; }
+  #badge { display: inline-block; margin-left: 12px; padding: 6px 14px; border-radius: 999px;
+    background: #1e3a2a; color: #a8e6b0; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  .card { border: 1px solid #333a45; border-radius: 12px; padding: 14px; min-height: 420px;
+    background: #161a21; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .timer { font-variant-numeric: tabular-nums; color: #fff; font-weight: 700; font-size: 28px; }
+  .stream { background: #0a0c10; color: #9f9; border: 1px solid #2a2f38; border-radius: 8px;
+    padding: 10px; height: 130px; overflow: auto;
+    font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; margin: 8px 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; min-height: 32px; }
+  .chip { padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #2a2e37; color: #c9cdd4; }
+  .chip.in { background: #1a3a5c; color: #8ab4f8; }
+  .mock { border: 1px solid #333a45; border-radius: 8px; padding: 12px; min-height: 120px; background: #10141b; }
+  small { color: #9aa0a6; }
+</style>
+</head>
+<body>
+<div id="root">(loading demo…)</div>
+<script src="./client.bundle.js"></script>
+</body>
+</html>

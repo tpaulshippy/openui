@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenUI + Jev — component selection: LLM baseline vs Jev</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; max-width: 1100px;
+    background: #0f1115; color: #e8eaed; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: #9aa0a6; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { border: 1px solid #333a45; border-radius: 12px; padding: 16px; background: #161a21; }
+  .card h2 { margin: 0 0 8px; font-size: 17px; }
+  .bar { height: 14px; border-radius: 7px; background: #2a2e37; overflow: hidden; margin: 6px 0 12px; }
+  .bar > div { height: 100%; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #1e3a2a; color: #a8e6b0; font-weight: 600; }
+  ul { padding-left: 18px; margin: 8px 0; }
+  code, pre { background: #22262e; color: #e8eaed; padding: 2px 6px; border-radius: 6px; }
+  pre { padding: 12px; overflow: auto; }
+  .mock { border: 1px dashed #4a5160; border-radius: 8px; padding: 12px; margin-top: 8px; }
+  .mock button { margin-right: 8px; }
+  small { color: #9aa0a6; }
+</style>
+</head>
+<body>
+<h1>Jev composer vs LLM baseline (LLM only on unavailable)</h1>
+<p class="sub">Same request. Baseline = full <code>lib.prompt()</code> → <code>gpt-4o-mini</code> generates openui-lang.
+Jev arm = one <code>jev-latest</code> round trip → <code>composeProgram(chosen)</code> → validated Lang, 0 LLM tokens.
+Fallback (flagged) runs one LLM call only when Jev reports unavailable.</p>
+<div class="card">
+  <span class="badge" id="speedup">loading results.json…</span>
+  <div class="bar"><div id="bar-jev" style="width:0;background:#1a73e8"></div></div>
+  <div class="bar"><div id="bar-base" style="width:0;background:#ea4335"></div></div>
+  <small id="timing"></small>
+</div>
+<br />
+<div class="grid">
+  <div class="card">
+    <h2>Without Jev (LLM baseline)</h2>
+    <small id="base-meta"></small>
+    <ul id="base-list"></ul>
+    <div class="mock" id="base-mock"></div>
+  </div>
+  <div class="card">
+    <h2>With Jev (batched decisions)</h2>
+    <small id="jev-meta"></small>
+    <ul id="jev-list"></ul>
+    <div class="mock" id="jev-mock"></div>
+  </div>
+</div>
+<br />
+<div class="card">
+  <h2>Reproduce</h2>
+  <pre>set -a; source ~/shared_config; set +a
+node demo.mjs --trials 3</pre>
+  <small>Keys stay server-side. Jev selects from the catalog only — it cannot invent prose, prop values, or layout. See README.md for limits.</small>
+</div>
+<script>
+async function main() {
+  const r = await (await fetch("./results.json")).json();
+  const med = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  const bMed = med(r.baseline.timesMs), jMed = med(r.jev.timesMs);
+  const max = Math.max(bMed, jMed);
+  document.getElementById("bar-jev").style.width = (100 * jMed / max) + "%";
+  document.getElementById("bar-base").style.width = (100 * bMed / max) + "%";
+  document.getElementById("speedup").textContent =
+    `Baseline median ${bMed.toFixed(0)}ms vs Jev median ${jMed.toFixed(0)}ms — fallback rate ${((r.jev.fallbackRate ?? 0) * 100).toFixed(0)}%`;
+  document.getElementById("timing").textContent =
+    `Generated ${r.generatedAt}. Trials: ${r.trials}. ${r.design ?? ""}`;
+  const last = (arr) => arr[arr.length - 1];
+  const b = last(r.baseline.runs), j = last(r.jev.runs);
+  document.getElementById("base-meta").textContent = `${b.ms.toFixed(0)}ms (last run), prompt ${b.promptChars} chars, parser errors ${b.errors}`;
+  document.getElementById("jev-meta").textContent = `${j.ms.toFixed(0)}ms (select ${j.selectMs?.toFixed(0) ?? "?"}${j.fallback ? `+gen ${j.genMs?.toFixed(0) ?? "?"}` : ", 0 LLM tokens"}, last run), stop ${j.stopReason ?? "?"}${j.fallback ? " FALLBACK" : ""}, parser errors ${j.errors}`;
+  document.getElementById("base-list").innerHTML = `<li><code>${b.errors}</code> parser errors, <code>${b.sourceChars}</code> source chars</li><li>codes: ${(b.errorCodes ?? []).join(", ") || "—"}</li>`;
+  document.getElementById("jev-list").innerHTML =
+    ((j.chosen ?? []).map((c) => `<li><code>${c}</code> (noul ${((j.scores ?? {})[c] ?? 0).toFixed(2)})</li>`).join("") || "<li>—</li>") +
+    `<li><small>max score ${(j.maxScore ?? 0).toFixed(2)}, LLM tokens ${j.llmTokens ?? 0}</small></li>`;
+  document.getElementById("base-mock").innerHTML = `<small>Open <code>live.html</code> → Build to see streamed Lang render through the real Renderer.</small>`;
+  document.getElementById("jev-mock").innerHTML = `<small>Chosen ids: ${(j.chosen ?? []).join(", ") || "—"}</small>`;
+}
+main().catch((e) => { document.getElementById("speedup").textContent = "Could not load results.json: " + e; });
+</script>
+</body>
+</html>
